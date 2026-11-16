@@ -318,6 +318,223 @@ function kb_permissions_for_space(int $spaceId): array
     );
 }
 
+/** 操作日志目录：默认 runtime/oplog，可在 myconfig.oplog.dir 配置绝对路径 */
+function kb_oplog_dir(): string
+{
+    $dir = trim((string) config('myconfig.oplog.dir'));
+    if ($dir === '') {
+        return rtrim(root_path(), '/\\') . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'oplog';
+    }
+    if (preg_match('#^(?:[A-Za-z]:[\\\\/]|/)#', $dir) !== 1) {
+        $dir = rtrim(root_path(), '/\\') . DIRECTORY_SEPARATOR . ltrim($dir, '/\\');
+    }
+    return rtrim($dir, '/\\');
+}
+
+/** 操作日志表名（WIKI 默认 prefix 为空，即 operation_log） */
+function kb_oplog_table_name(): string
+{
+    return (string) config('database.connections.kb.prefix', '') . 'operation_log';
+}
+
+function kb_oplog_table_exists(): bool
+{
+    $rows = \think\facade\Db::query(
+        "SELECT TABLE_NAME FROM information_schema.TABLES
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1",
+        [kb_oplog_table_name()]
+    );
+    return $rows !== [];
+}
+
+/** 兼容未执行迁移的旧表：缺 object_type 列时运行时补列 */
+function kb_ensure_oplog_object_type(): bool
+{
+    static $ready = null;
+    if ($ready !== null) {
+        return $ready;
+    }
+    if (!kb_oplog_table_exists()) {
+        return $ready = false;
+    }
+
+    try {
+        $table = kb_oplog_table_name();
+        $columns = \think\facade\Db::query("SHOW COLUMNS FROM `{$table}` LIKE 'object_type'");
+        if ($columns === []) {
+            \think\facade\Db::execute(
+                "ALTER TABLE `{$table}` ADD COLUMN `object_type` VARCHAR(40) NOT NULL DEFAULT '' COMMENT '操作对象类型' AFTER `object_id`"
+            );
+            // fields_cache 开启时不清缓存，ORM 会继续按旧表结构过滤新列
+            \think\facade\Cache::clear();
+        }
+        return $ready = true;
+    } catch (\Throwable $e) {
+        \think\facade\Log::error('操作日志表补列失败: ' . $e->getMessage());
+        return $ready = false;
+    }
+}
+
+/**
+ * 操作日志表自愈：未执行迁移时，运行时自动创建与 EIP 同构的按月 RANGE 分区表。
+ * 仅在当前请求内缓存成功结果；失败不抛异常，仍允许写文件日志。
+ */
+function kb_ensure_oplog_table(): bool
+{
+    static $ready = false;
+    if ($ready) {
+        return true;
+    }
+
+    try {
+        if (kb_oplog_table_exists()) {
+            return $ready = kb_ensure_oplog_object_type();
+        }
+
+        $table = kb_oplog_table_name();
+        $definitions = [];
+        $cursor = new \DateTimeImmutable(date('Y-m-01'));
+        for ($i = 0; $i <= 6; $i++) {
+            $key      = $cursor->format('Ym');
+            $boundary = $cursor->modify('first day of next month')->format('Y-m-d');
+            $definitions[] = "PARTITION `p{$key}` VALUES LESS THAN (TO_DAYS('{$boundary}'))";
+            $cursor = $cursor->modify('first day of next month');
+        }
+        $definitions[] = 'PARTITION `pmax` VALUES LESS THAN MAXVALUE';
+
+        \think\facade\Db::execute(
+            "CREATE TABLE IF NOT EXISTS `{$table}` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `user_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'EIP 用户 ID',
+                `username` VARCHAR(50) NULL DEFAULT NULL COMMENT '登录名快照',
+                `action` VARCHAR(100) NOT NULL DEFAULT '' COMMENT '模块.动作',
+                `detail` TEXT NULL COMMENT '操作描述，不含敏感请求体',
+                `ip` VARCHAR(45) NULL DEFAULT NULL COMMENT '来源 IP',
+                `method` VARCHAR(12) NULL DEFAULT NULL COMMENT 'HTTP 方法',
+                `path` VARCHAR(200) NULL DEFAULT NULL COMMENT '请求路径',
+                `result` VARCHAR(16) NOT NULL DEFAULT 'success' COMMENT 'success / fail',
+                `object_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '操作对象 ID',
+                `object_type` VARCHAR(40) NOT NULL DEFAULT '' COMMENT '操作对象类型',
+                `space_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '当前空间 ID',
+                `duration_ms` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '接口耗时毫秒',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                PRIMARY KEY (`id`, `created_at`),
+                INDEX `idx_oplog_user_created` (`user_id`, `created_at`),
+                INDEX `idx_oplog_created` (`created_at`),
+                INDEX `idx_oplog_action` (`action`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='后台操作日志表'
+            PARTITION BY RANGE (TO_DAYS(`created_at`)) (" . implode(', ', $definitions) . ')'
+        );
+
+        return $ready = kb_oplog_table_exists() && kb_ensure_oplog_object_type();
+    } catch (\Throwable $e) {
+        \think\facade\Log::error('操作日志表自动创建失败: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** 操作日志字段清洗：去控制字符、压平换行、按长度截断，避免日志注入与大字段 */
+function kb_oplog_text(string $value, int $max = 2000): string
+{
+    $value = str_replace(["\r", "\n", "\t"], ' ', $value);
+    $value = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $value) ?? '';
+    $value = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+    return mb_substr($value, 0, max(1, $max));
+}
+
+/**
+ * 操作日志双写：独立文件（JSON Lines）+ 数据库分区表。
+ * 只记录白名单上下文，绝不写请求体、正文、密码、Token、Authorization 或 Cookie。
+ * 文件与数据库分别独立容错，任一写入失败都不阻断业务主流程（与 EIP write_oplog 一致）。
+ */
+function write_oplog(string $action, string $detail = '', string $username = '', array $context = []): void
+{
+    $row = [];
+    try {
+        $request = request();
+        $profile = $request->userProfile ?? [];
+        $userId  = (int) ($request->userId ?? 0);
+        if ($username === '') {
+            $username = (string) ($profile['username'] ?? $profile['nickname'] ?? '');
+        }
+
+        $detailMax = max(200, (int) (config('myconfig.oplog.detail_max') ?: 2000));
+        $row = [
+            'time'     => date('c'),
+            'user_id'  => $userId,
+            'username' => kb_oplog_text($username, 50),
+            'action'   => kb_oplog_text($action, 80),
+            'detail'   => kb_oplog_text($detail, $detailMax),
+            'ip'       => kb_oplog_text((string) $request->ip(), 64),
+            'method'   => kb_oplog_text((string) $request->method(), 12),
+            'path'     => kb_oplog_text((string) $request->pathinfo(), 200),
+            'result'   => 'success',
+        ];
+
+        $allowedContext = ['user_id', 'method', 'path', 'result', 'object_type', 'object_id', 'space_id', 'duration_ms'];
+        foreach ($allowedContext as $key) {
+            if (!array_key_exists($key, $context) || !is_scalar($context[$key])) {
+                continue;
+            }
+            if (in_array($key, ['user_id', 'object_id', 'space_id', 'duration_ms'], true)) {
+                $row[$key] = max(0, (int) $context[$key]);
+            } else {
+                $max = $key === 'path' ? 200 : ($key === 'object_type' ? 40 : 32);
+                $row[$key] = kb_oplog_text((string) $context[$key], $max);
+            }
+        }
+    } catch (\Throwable $e) {
+        \think\facade\Log::error('操作日志字段生成失败: ' . $e->getMessage());
+        return;
+    }
+
+    // 1) 文件日志：原有 JSON Lines 行为保持不变
+    try {
+        $dir = kb_oplog_dir() . DIRECTORY_SEPARATOR . date('Ym');
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new \RuntimeException('无法创建操作日志目录');
+        }
+        $file = $dir . DIRECTORY_SEPARATOR . date('d') . '.log';
+        $line = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($line === false) {
+            throw new \RuntimeException('操作日志 JSON 编码失败');
+        }
+        if (@file_put_contents($file, $line . PHP_EOL, FILE_APPEND | LOCK_EX) === false) {
+            throw new \RuntimeException('操作日志文件写入失败');
+        }
+    } catch (\Throwable $e) {
+        \think\facade\Log::error('操作日志文件写入失败: ' . $e->getMessage());
+    }
+
+    // 2) 数据库日志：与 EIP 同构，created_at 使用标准 SQL datetime
+    if (config('myconfig.oplog.db_enabled') === false) {
+        return;
+    }
+    try {
+        if (!kb_ensure_oplog_table()) {
+            \think\facade\Log::error('操作日志数据库表不可用，跳过数据库写入');
+            return;
+        }
+        \app\model\OperationLog::create([
+            'user_id'     => (int) ($row['user_id'] ?? 0),
+            'username'    => (string) ($row['username'] ?? ''),
+            'action'      => (string) ($row['action'] ?? ''),
+            'detail'      => (string) ($row['detail'] ?? ''),
+            'ip'          => (string) ($row['ip'] ?? ''),
+            'method'      => (string) ($row['method'] ?? ''),
+            'path'        => (string) ($row['path'] ?? ''),
+            'result'      => (string) ($row['result'] ?? 'success'),
+            'object_type' => (string) ($row['object_type'] ?? ''),
+            'object_id'   => (int) ($row['object_id'] ?? 0),
+            'space_id'    => (int) ($row['space_id'] ?? 0),
+            'duration_ms' => (int) ($row['duration_ms'] ?? 0),
+            'created_at'  => date('Y-m-d H:i:s'),
+        ]);
+    } catch (\Throwable $e) {
+        \think\facade\Log::error('操作日志数据库写入失败: ' . $e->getMessage());
+    }
+}
+
 /**
  * 清理统一回收站中超过保留期的分组目录（按目录 mtime 判断）
  */

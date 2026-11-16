@@ -36,6 +36,9 @@ export default defineConfig(({ mode }) => {
         '/kbapi': {
           target: proxyTarget,
           changeOrigin: true,
+          // 把浏览器真实 IP 写入 X-Forwarded-For；否则经 dev server 转发的请求
+          // 到后端都是 127.0.0.1，操作日志会全部记成本机地址。
+          xfwd: true,
         },
         // 上传资源改走 /kbapi/assets 鉴权接口，不再代理 /uploads 静态直出
       },

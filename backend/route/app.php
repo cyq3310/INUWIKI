@@ -1,6 +1,7 @@
 <?php
 
 use app\middleware\AuthCheck;
+use app\middleware\OperationLog;
 use app\middleware\PermissionCheck;
 use think\facade\Route;
 
@@ -67,6 +68,9 @@ Route::group('kbapi', function () {
         Route::post('permissions', 'admin.Permission/save')->middleware(PermissionCheck::class, 'kb:permission:manage');
         Route::post('permissions/remove', 'admin.Permission/remove')->middleware(PermissionCheck::class, 'kb:permission:manage');
 
+        // 操作日志：只读查询，对所有已登录用户开放（AuthCheck 已保证登录态）
+        Route::get('operation-logs', 'admin.OperationLog/index');
+
         // 文章读写改为 ArticlePolicy 对象级判定（本人默认可操作、他人需对应码），
         // 不能用路由中间件一刀切拦截，否则无码用户连自己的文章都改不了。
         Route::get('articles', 'admin.Article/index');
@@ -95,5 +99,5 @@ Route::group('kbapi', function () {
         Route::post('kb/uploads/complete', 'admin.Upload/complete')->middleware(PermissionCheck::class, 'kb:media:upload');
         Route::get('kb/attachments', 'admin.Upload/attachment')->middleware(PermissionCheck::class, 'kb:media:upload');
         Route::post('kb/images', 'admin.Upload/image')->middleware(PermissionCheck::class, 'kb:media:upload');
-    });
+    })->middleware(OperationLog::class);
 })->middleware(AuthCheck::class);

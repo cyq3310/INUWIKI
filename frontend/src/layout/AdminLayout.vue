@@ -25,6 +25,7 @@ const isWiki = computed(() => route.path.startsWith('/admin/wiki'))
 const isSpaces = computed(() => route.path.startsWith('/admin/spaces'))
 const isConfig = computed(() => route.path.startsWith('/admin/config'))
 const isGlobal = computed(() => route.path.startsWith('/admin/global'))
+const isOplogs = computed(() => route.path.startsWith('/admin/operation-logs'))
 
 /** 空间管理入口：可管理空间或仅可创建空间的角色都应能进入 */
 const canSpaces = computed(() =>
@@ -36,6 +37,7 @@ const CONFIG_PERMS = ['kb:category:manage', 'kb:doc_type:manage', 'kb:permission
 const canConfig = computed(() => CONFIG_PERMS.some((code) => store.hasPermission(code)))
 /** 全局管理入口由「空间管理」分组下的「全局管理」权限单独控制 */
 const canGlobal = computed(() => store.hasPermission('kb:global:manage'))
+/** 操作日志对所有登录用户开放，不做权限码门槛 */
 
 const adminSpaceId = computed({
   get: () => wiki.adminSpaceId,
@@ -130,6 +132,13 @@ const handleCommand = (command: string) => {
           @click="router.push('/admin/global')"
         >
           全局管理
+        </a>
+        <a
+          href="javascript:void(0)"
+          :class="{ active: isOplogs }"
+          @click="router.push('/admin/operation-logs')"
+        >
+          操作日志
         </a>
       </nav>
 

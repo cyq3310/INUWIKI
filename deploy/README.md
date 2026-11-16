@@ -64,14 +64,20 @@ sudo systemctl restart php8.2-fpm
 sudo supervisorctl reread && sudo supervisorctl update
 sudo supervisorctl start kb-worker:*
 
-# 9. 定时任务（目录快照同步 + 清理暂存分片与回收站）
+# 9. 定时任务（目录快照同步 + 清理暂存分片与回收站 + 文件日志清理 + 数据库日志分区维护）
 cat <<'CRON' | sudo crontab -
 */10 * * * * cd /var/www/inuwiki/backend && /usr/bin/php think kb:subject-sync
 0 3 * * * cd /var/www/inuwiki/backend && /usr/bin/php think kb:gc
+0 4 * * * cd /var/www/inuwiki/backend && /usr/bin/php think kb:log-gc >> /dev/null 2>&1
+10 3 1 * * cd /var/www/inuwiki/backend && /usr/bin/php think oplog:maintain >> /dev/null 2>&1
 CRON
 ```
 
 > `kb_subject` 每 10 分钟从 EIP 主库同步一次；授权目录的搜索与名称解析只读本地表，不再访问 EIP 主库。
+> `kb:log-gc` 参考 EIP 的 180 天保留策略，每日清理 `runtime/log/`、`runtime/oplog/` 与 `runtime/*.log`；默认总大小上限 512MB，可用 `--days`、`--max-mb`、`--dry-run` 覆盖或演练。
+> `oplog:maintain` 与 EIP 同构，每月 1 日维护 `operation_log` 的按月 RANGE 分区：补建未来 6 个月分区、DROP 超过 180 天的整月分区。两条调度输出都直接丢弃，避免清理命令自身再产生无限增长日志。
+> 若首次部署未执行迁移，`write_oplog()` 与操作日志查询接口会自动创建 `operation_log` 分区表；查询时若数据库与文件日志都为空，会生成一条 `kb.oplog.init` 初始化记录，避免页面空白。规范部署仍建议执行 `php think migrate:run`。
+> 操作日志 IP 默认信任本机回环代理，配置 `myconfig.oplog.trusted_proxies` 只会追加可信代理、不会覆盖回环。真实 IP 依赖链路传头：Vite dev proxy 已开启 `xfwd`；生产 `deploy/nginx/inuwiki.conf` 已向 PHP-FPM 传递 `X-Real-IP` / `X-Forwarded-For`。若前面还有反向代理，需同步保留这两个头，并把该代理 IP/CIDR 配到 `trusted_proxies`。
 > EIP 侧新增 / 改名最多延迟一个同步周期生效；需要立即刷新时手动执行 `php think kb:subject-sync`。
 > 注意：登录校验（AuthService）与权限装配（RbacService）仍实时读取 EIP 主库，不在本次改造范围内。
 
@@ -181,5 +187,8 @@ watch -n1 "curl -s http://<host>/phpfpm-status"
 - [ ] uploads 目录已禁止执行 PHP
 - [ ] Supervisor 守护 `queue:work`，日志无异常
 - [ ] `kb:gc` 定时任务已配置
+- [ ] `kb:log-gc` 文件日志清理定时任务已配置，且 `backend/runtime/oplog/` 可写
+- [ ] `oplog:maintain` 数据库日志分区维护定时任务已配置，且已执行 `php think migrate:run`（包括 RemoveOplogViewPermission）
+- [ ] 操作日志页对所有登录用户开放，无需再分配任何权限码
 - [ ] 已在 EIP 后台为相应角色分配 `kb:*` 权限点
 - [ ] 备份策略：`/data/inuwiki` 与 `Inuwiki` 库定期备份

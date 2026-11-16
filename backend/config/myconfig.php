@@ -111,6 +111,26 @@ return [
         'temp_retention_hours' => 24,
     ],
 
+    // oplog：独立操作日志文件（JSON Lines，每月一个目录、每天一个文件）
+    // 注意：此分组禁止加入 frontend_public.keys
+    'oplog' => [
+        'dir'             => '',    // 留空表示 backend/runtime/oplog；可配绝对路径
+        'detail_max'      => 2000,  // 单条描述最大长度
+        'db_enabled'      => true,  // 同时写入按月分区的 operation_log 表
+        'trusted_proxies' => [],    // 额外可信反向代理 IP/CIDR；本机回环始终可信
+    ],
+
+    // log_gc：运行日志/操作日志定时清理（kb:log-gc），参考 EIP 180 天保留策略
+    // 注意：此分组禁止加入 frontend_public.keys
+    'log_gc' => [
+        'retention_days' => 180,
+        'max_total_mb'   => 512,
+        'scan_dirs'      => [
+            'runtime/log',
+            'runtime/oplog',
+        ],
+    ],
+
     // frontend_public：允许下发到前端的键白名单（值为"分组.键"）
     // database / jwt 任何键都不得加入
     'frontend_public' => [

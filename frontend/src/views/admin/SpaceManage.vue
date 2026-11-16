@@ -356,8 +356,8 @@ onMounted(() => {
         <div class="space-card-code">编码：{{ space.code }}</div>
 
         <div class="space-card-stats">
-          <div><b>{{ space.article_count ?? 0 }}</b><small>文章</small></div>
-          <div><b>{{ space.is_restricted === 1 ? (space.member_count ?? 0) : '全部' }}</b><small>成员</small></div>
+          <div><b class="space-stat-articles">{{ space.article_count ?? 0 }}</b><small>文章</small></div>
+          <div><b class="space-stat-members">{{ space.is_restricted === 1 ? (space.member_count ?? 0) : '全部' }}</b><small>成员</small></div>
         </div>
 
         <span v-if="space.status !== 1" class="space-card-flag">已停用</span>

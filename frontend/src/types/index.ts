@@ -211,6 +211,38 @@ export interface PageResult<T> {
   list: T[]
 }
 
+/** 后台操作日志（数据库分区表 operation_log） */
+export interface OperationLogItem {
+  id: number
+  user_id: number
+  display_user_id?: number
+  username: string | null
+  action: string
+  detail: string | null
+  ip: string | null
+  method: string | null
+  path: string | null
+  result: string
+  object_type?: string
+  object_id: number
+  object_label?: string
+  space_id: number
+  space_name?: string
+  duration_ms: number
+  created_at: string
+}
+
+export interface OperationLogQuery {
+  page?: number
+  size?: number
+  keyword?: string
+  username?: string
+  action?: string
+  result?: string
+  date_from?: string
+  date_to?: string
+}
+
 /** 统一响应体（响应拦截器直接返回整个 body） */
 export interface ApiResult<T> {
   code: number

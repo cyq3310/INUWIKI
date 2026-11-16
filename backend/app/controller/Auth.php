@@ -20,6 +20,12 @@ class Auth extends BaseController
         try {
             $result = (new AuthService())->login($username, $password);
         } catch (\RuntimeException $e) {
+            write_oplog('auth.login', '用户登录失败', $username, [
+                'method'      => 'POST',
+                'path'        => 'kbapi/auth/login',
+                'result'      => 'fail',
+                'object_type' => 'user',
+            ]);
             return resp_fail($e->getMessage(), $e->getCode() ?: 400);
         }
 
@@ -27,6 +33,15 @@ class Auth extends BaseController
         // 票据独立于 JWT，URL 中不含任何凭证，可安全长期写进正文 HTML。
         $userId = (int) ($result['user']['id'] ?? 0);
         $ticket = $userId > 0 ? (new AuthService())->makeAssetTicket($userId) : '';
+        write_oplog('auth.login', '用户登录成功', $username, [
+            'method'      => 'POST',
+            'path'        => 'kbapi/auth/login',
+            'result'      => 'success',
+            // 登录接口在鉴权前执行，request->userId 还是 0，用登录结果显式补齐
+            'user_id'     => $userId,
+            'object_type' => 'user',
+            'object_id'   => $userId,
+        ]);
         return resp_ok($result, '登录成功')->header([
             'Set-Cookie' => $this->assetCookie($ticket, max(1, strtotime(date('Y-m-d') . ' 23:59:59') - time())),
         ]);
@@ -35,6 +50,13 @@ class Auth extends BaseController
     /** 登出：同时清除资源票据 cookie */
     public function logout()
     {
+        write_oplog('auth.logout', '用户退出登录', '', [
+            'method'      => 'POST',
+            'path'        => 'kbapi/auth/logout',
+            'result'      => 'success',
+            'object_type' => 'user',
+            'object_id'   => kb_user_id(),
+        ]);
         return resp_ok([], '已退出登录')->header([
             'Set-Cookie' => $this->assetCookie('', 0),
         ]);

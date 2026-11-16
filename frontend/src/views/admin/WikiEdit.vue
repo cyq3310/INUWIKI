@@ -73,7 +73,7 @@ const form = reactive({
   summary: '',
   band_color: 'g1',
   status: 'draft' as ArticleStatus,
-  view_scope: 'public' as ViewScope,
+  view_scope: 'space' as ViewScope,
   edit_mode: 'open' as EditMode,
   content: '',
 })

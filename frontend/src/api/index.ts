@@ -10,6 +10,8 @@ import type {
   DocTypeSubject,
   DocTypeVisibility,
   GrantItem,
+  OperationLogItem,
+  OperationLogQuery,
   PageResult,
   PermissionDef,
   PermissionGrant,
@@ -200,6 +202,19 @@ export const permissionApi = {
       subject_type: subjectType,
       subject_id: subjectId,
     }),
+}
+
+// ---------- 后台：操作日志 ----------
+/** 只读查询数据库操作日志；actions 为当前库内已有动作，用于筛选下拉 */
+export const oplogApi = {
+  list: (params: OperationLogQuery = {}) =>
+    request.get('/admin/operation-logs', { params }) as Promise<{
+      data: PageResult<OperationLogItem> & {
+        actions: string[]
+        source?: string
+        notice?: string
+      }
+    }>,
 }
 
 // ---------- 可选能力（后端暂未提供，静默降级） ----------

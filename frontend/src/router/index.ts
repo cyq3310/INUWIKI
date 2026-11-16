@@ -79,6 +79,12 @@ const router = createRouter({
           component: () => import('../views/admin/GlobalManage.vue'),
           meta: { title: '全局管理', perm: 'kb:global:manage' },
         },
+        {
+          path: 'operation-logs',
+          name: 'AdminOperationLogs',
+          component: () => import('../views/admin/OperationLogs.vue'),
+          meta: { title: '操作日志' },
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
@@ -107,10 +113,12 @@ router.beforeEach(async (to) => {
   }
 
   if (to.path.startsWith('/admin')) {
+    // 操作日志对所有登录用户开放，不做后台管理员或权限码门槛
+    const isOperationLogs = to.path.startsWith('/admin/operation-logs')
     // 从门户详情页带 can_edit 快照进入编辑页时以后端 canEditArticle 结论为准：
     // 「空间 can_edit / 编辑名单」授权的用户可能没有 kb:article:update 权限码。
     const fromArticleEdit = to.name === 'AdminWikiEdit' && useWikiStore().editRow?.can_edit === true
-    if (!store.isAdmin && !fromArticleEdit) {
+    if (!isOperationLogs && !store.isAdmin && !fromArticleEdit) {
       return { path: '/' }
     }
     const perm = to.meta.perm as string | string[] | undefined

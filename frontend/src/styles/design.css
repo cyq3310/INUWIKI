@@ -2410,6 +2410,12 @@ textarea.input {
   color: var(--text);
   line-height: 1.2;
 }
+.space-card-stats .space-stat-articles {
+  color: var(--primary);
+}
+.space-card-stats .space-stat-members {
+  color: var(--amber);
+}
 .space-card-stats small {
   margin-left: 4px;
   font-size: 12px;
