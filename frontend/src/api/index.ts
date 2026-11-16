@@ -10,6 +10,7 @@ import type {
   DocTypeSubject,
   DocTypeVisibility,
   GrantItem,
+  KbStats,
   OperationLogItem,
   OperationLogQuery,
   PageResult,
@@ -217,13 +218,13 @@ export const oplogApi = {
     }>,
 }
 
-// ---------- 可选能力（后端暂未提供，静默降级） ----------
+// ---------- 后台运行统计 ----------
 
-/** 后台存储 / 转码统计。后端 route/app.php 暂无此接口，返回 null 时前端显示占位。 */
+/** 后台存储 / 转码统计；接口失败时前端静默降级为占位值 */
 export const kbStatsApi = {
   fetch: () =>
     request.get('/admin/kb/stats', { silent: true }) as Promise<{
-      data: { used_bytes: number; total_bytes: number; transcoding: number; failed: number }
+      data: KbStats
     }>,
 }
 

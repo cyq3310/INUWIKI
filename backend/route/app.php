@@ -71,6 +71,9 @@ Route::group('kbapi', function () {
         // 操作日志：只读查询，对所有已登录用户开放（AuthCheck 已保证登录态）
         Route::get('operation-logs', 'admin.OperationLog/index');
 
+        // 知识库运行统计：只读聚合值（磁盘容量 + 转码队列），供后台列表页脚展示
+        Route::get('kb/stats', 'admin.Kb/stats');
+
         // 文章读写改为 ArticlePolicy 对象级判定（本人默认可操作、他人需对应码），
         // 不能用路由中间件一刀切拦截，否则无码用户连自己的文章都改不了。
         Route::get('articles', 'admin.Article/index');

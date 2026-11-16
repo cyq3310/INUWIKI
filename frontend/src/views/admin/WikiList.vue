@@ -12,12 +12,12 @@ import { formatBytes, formatCount, formatShortDateTime } from '../../utils/forma
 import { fetchAllSpaceArticles } from '../../utils/space-nav'
 import { cardColorOf } from '../../utils/card'
 import { useSidebarWidth } from '../../composables/useSidebarWidth'
-import type { ArticleItem } from '../../types'
+import type { ArticleItem, KbStats } from '../../types'
 
 /**
  * 后台 · 知识管理列表
  * 左侧：空间列表（含受限标记）+ 目录树；右侧：文章表格（色块/标题/文档类型/状态/可见范围/视频/浏览/更新时间/操作）
- * 页脚：存储容量条 + 转码队列状态（后端暂无统计接口时降级显示占位）。
+ * 页脚：存储容量条 + 转码队列状态（统计接口失败时降级显示占位）。
  */
 
 
@@ -55,8 +55,8 @@ const loading = ref(false)
 /** 文档类型下拉选项：每个空间各自一套；「全部空间」时合并并加空间名前缀 */
 const docTypes = ref<{ id: number; name: string }[]>([])
 
-/** 后端暂无存储 / 转码统计接口（kbStatsApi 静默探测，失败时为 null） */
-const kbStats = ref<{ used_bytes: number; total_bytes: number; transcoding: number; failed: number } | null>(null)
+/** 存储 / 转码统计（接口失败时为 null，页脚降级为占位） */
+const kbStats = ref<KbStats | null>(null)
 
 /** 侧栏目录树：当前空间的目录与全部文章（后台口径含草稿/下架） */
 const navArticles = ref<ArticleItem[]>([])
@@ -482,7 +482,7 @@ function purgeArticle(row: ArticleItem): void {
       </div>
 
       <div v-if="!kbStats" class="cell-sub" style="margin-top: 8px">
-        说明：后端暂未提供 GET /kbapi/admin/kb/stats，存储容量与转码队列为占位展示，接口上线后自动生效。
+        说明：统计接口 GET /kbapi/admin/kb/stats 暂不可用，存储容量与转码队列显示占位值。
       </div>
     </main>
   </div>

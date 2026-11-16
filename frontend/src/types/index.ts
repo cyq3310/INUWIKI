@@ -211,6 +211,14 @@ export interface PageResult<T> {
   list: T[]
 }
 
+/** 后台知识库运行统计（GET /kbapi/admin/kb/stats） */
+export interface KbStats {
+  used_bytes: number
+  total_bytes: number
+  transcoding: number
+  failed: number
+}
+
 /** 后台操作日志（数据库分区表 operation_log） */
 export interface OperationLogItem {
   id: number
