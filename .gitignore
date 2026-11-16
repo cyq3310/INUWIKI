@@ -1,0 +1,81 @@
+# 依赖目录
+node_modules/
+vendor/
+
+# 构建产物
+dist/
+dist-ssr/
+*.local
+
+# 日志
+*.log
+
+# 本地环境变量与凭证
+.env
+.env.*
+!.env.example
+!.env.development
+
+# 后端运行时与用户上传内容
+backend/runtime/
+backend/public/uploads/*
+!backend/public/uploads/.htaccess
+tools/composer-home/
+tools/composer.phar
+
+# 测试数据 / 数据库内容（不提交；database/ 迁移脚本需提交）
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+*.dump
+*.sql
+# 测试数据目录（Mock 数据 / 验证数据 / 种子数据等）
+**/tests/fixtures/
+**/test-data/
+**/*.test-data.*
+**/seed-data/
+
+# 调试 / 原型 / 自动化临时文件
+generated-images/
+prototype/
+login.yaml
+editpage.yaml
+portal.png
+preview-tree-state.png
+.playwright-cli/
+.cdp-profile/
+
+# 本地演示 / 测试数据（不提交；数据库结构迁移脚本 database/ 仍提交）
+**/tools/seed-demo.php
+**/tools/seed-demo-state.json
+
+# AI 工具本地产物（不提交；本地 AI 会话/生成数据，非项目代码）
+.codebuddy/
+.cursor/
+.cline/
+.claude/
+.aider/
+.github/copilot*
+ai-session*/
+**/ai-chat*
+chat-export*/
+
+# 根目录调试 / 验证截图（src 内资源不受影响）
+/list-验证-*.png
+frontend/*.png
+
+# 版本更新日志（需提交，勿忽略）
+# CHANGELOG.md / docs/更新日志.md 正常提交
+
+# 编辑器与系统文件
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

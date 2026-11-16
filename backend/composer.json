@@ -1,0 +1,38 @@
+{
+    "name": "inueip/inuwiki",
+    "description": "吟游廊 WIKI 知识库后端（ThinkPHP 8）",
+    "type": "project",
+    "keywords": ["INUWIKI", "wiki", "knowledge", "thinkphp"],
+    "license": "Apache-2.0",
+    "require": {
+        "php": ">=8.0.0",
+        "topthink/framework": "^8.0",
+        "topthink/think-orm": "^3.0|^4.0",
+        "topthink/think-filesystem": "^2.0|^3.0",
+        "topthink/think-queue": "^3.0",
+        "topthink/think-migration": "^3.1",
+        "firebase/php-jwt": "^7.1",
+        "ezyang/htmlpurifier": "^4.19",
+        "intervention/image": "^3.0"
+    },
+    "require-dev": {
+        "topthink/think-trace": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "app\\": "app"
+        },
+        "psr-0": {
+            "": "extend/"
+        }
+    },
+    "config": {
+        "preferred-install": "dist"
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "@php think service:discover",
+            "@php think vendor:publish"
+        ]
+    }
+}
