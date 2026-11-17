@@ -62,7 +62,16 @@ class Auth extends BaseController
         ]);
     }
 
-    /** 资源票据 cookie：HttpOnly，生产环境附加 Secure */
+    /**
+     * 资源票据 cookie：HttpOnly；仅当本次请求确为 HTTPS 时才附加 Secure。
+     *
+     * 不能依据 deploy.env 判断：HTTP 站点（如内网 IP:端口、未上证书的生产环境）
+     * 若下发 Secure cookie，浏览器会直接丢弃，导致 <a href> 下载、<img>、<video>
+     * 拿不到 kb_asset 票据，AuthCheck 判定未登录并把文档导航 302 回登录页。
+     *
+     * Request::isSsl() 已兼容反向代理：检查 HTTPS / REQUEST_SCHEME / SERVER_PORT /
+     * HTTP_X_FORWARDED_PROTO，因此 HTTPS 部署（含 TLS 在反代终止）仍会加 Secure。
+     */
     private function assetCookie(string $value, int $maxAge): string
     {
         $parts = [
@@ -72,7 +81,7 @@ class Auth extends BaseController
             'SameSite=Lax',
             'Max-Age=' . $maxAge,
         ];
-        if (config('myconfig.deploy.env') === 'production') {
+        if ($this->request->isSsl()) {
             $parts[] = 'Secure';
         }
         return implode('; ', $parts);
