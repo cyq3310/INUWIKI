@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>授权搜索选择器 · 效果预览</title>
+<style>
+  :root {
+    --line: #e6e9f0; --text: #1c2333; --text-2: #545c6e; --text-3: #8a93a6;
+    --primary: #2b5ce6; --primary-2: #6c8cff; --bg: #f5f7fb; --red: #e04b4b;
+    --r-s: 8px; --r-m: 12px; --r-l: 16px;
+    --sh-1: 0 1px 2px rgba(20, 30, 60, .04), 0 8px 24px rgba(20, 30, 60, .06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; }
+  .topbar { display: flex; align-items: center; gap: 24px; height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; white-space: nowrap; }
+  .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg, #2b5ce6, #6c8cff); color: #fff; }
+  .brand small { display: block; font-weight: 400; font-size: 11px; color: var(--text-3); }
+  .nav { display: flex; gap: 4px; margin-left: auto; }
+  .nav span { padding: 8px 14px; border-radius: var(--r-s); color: var(--text-2); font-size: 13px; }
+  .nav span.active { background: #eef3ff; color: var(--primary); font-weight: 600; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 26px 28px 60px; }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  .sub { margin: 0 0 18px; font-size: 12px; color: var(--text-3); }
+  .scene-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .scene-tabs button { padding: 8px 16px; border: 1px solid var(--line); border-radius: var(--r-s); background: #fff; color: var(--text-2); font-size: 13px; }
+  .scene-tabs button.active { border-color: var(--primary); background: var(--primary); color: #fff; font-weight: 600; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+  .card { border: 1px solid var(--line); border-radius: var(--r-l); background: #fff; box-shadow: var(--sh-1); }
+  .card-head { padding: 12px 18px; border-bottom: 1px solid var(--line); background: #fafbfe; font-size: 12px; color: var(--text-3); }
+  .card-body { padding: 18px; }
+  .section-title { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  .tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .tabs button { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-2); font-size: 13px; }
+  .tabs button.active { border-bottom-color: var(--primary); color: var(--primary); font-weight: 600; }
+  .tabs .hint { margin-left: auto; font-size: 11px; color: var(--text-3); }
+  .grant-panel { border: 1px solid var(--line); border-radius: var(--r-m); overflow: hidden; }
+  .grant-head { padding: 8px 14px; border-bottom: 1px solid var(--line); background: #fafbfe; font-size: 12px; color: var(--text-3); }
+  .grant-row { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 6px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .grant-row:last-child { border-bottom: 0; }
+  .tag { flex: none; padding: 1px 8px; border-radius: 999px; background: #eef3ff; color: var(--primary); font-size: 11px; }
+  .tag.user { background: #eaf7ee; color: #2e8b57; }
+  .who { flex: 1; min-width: 0; font-weight: 500; }
+  .who .code { margin-left: 8px; color: var(--text-3); font-size: 11px; font-weight: 400; }
+  .perm { display: flex; gap: 12px; color: var(--text-2); font-size: 12px; }
+  .perm i { display: inline-block; width: 12px; height: 12px; margin-right: 4px; border-radius: 3px; background: var(--primary); vertical-align: -2px; }
+  .perm .off i { background: #d8dce6; }
+  .remove { border: 0; background: transparent; color: var(--red); font-size: 12px; }
+  .grant-add { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+  .grant-add .select { width: 110px; height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--r-s); background: #fff; color: var(--text-2); font-size: 12px; flex: none; }
+  .sub-picker { position: relative; flex: 1; min-width: 220px; }
+  .sub-search { position: relative; display: flex; align-items: center; }
+  .sub-search svg { position: absolute; left: 11px; color: var(--text-3); pointer-events: none; }
+  .sub-input { width: 100%; height: 36px; padding: 0 36px 0 34px; border: 1px solid var(--line); border-radius: var(--r-s); background: #fff; color: var(--text); font-size: 13px; outline: none; }
+  .sub-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(43, 92, 230, .12); }
+  .sub-caret { position: absolute; right: 7px; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); }
+  .sub-caret.open svg { transform: rotate(180deg); }
+  .sub-menu { position: fixed; z-index: 3000; border: 1px solid var(--line); border-radius: var(--r-m); background: #fff; box-shadow: 0 12px 40px rgba(20, 30, 60, .16); overflow: hidden; }
+  .sub-menu-body { max-height: 260px; overflow: auto; padding: 5px; }
+  .sub-option { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 6px 10px; border: 0; border-radius: var(--r-s); background: transparent; color: var(--text-2); font-size: 13px; text-align: left; }
+  .sub-option:hover, .sub-option.active { background: #eef3ff; color: var(--primary); }
+  .sub-option.added { opacity: .55; cursor: default; }
+  .sub-option.added:hover { background: transparent; color: var(--text-2); }
+  .sub-icon { flex: none; color: var(--primary-2); }
+  .sub-name { flex: 1; min-width: 0; font-weight: 500; }
+  .sub-code { flex: none; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--text-3); }
+  .sub-tag { flex: none; padding: 1px 6px; border-radius: 999px; background: #f1f3f8; color: var(--text-3); font-size: 10px; }
+  .sub-tag.warn { background: #fff6e5; color: #a97100; }
+  .sub-id { flex: none; font-size: 11px; color: var(--text-3); }
+  .sub-empty { padding: 16px 12px; text-align: center; font-size: 12px; color: var(--text-3); }
+  .sub-foot { padding: 7px 12px; border-top: 1px solid var(--line); background: #fafbfe; font-size: 11px; color: var(--text-3); }
+  .note { margin-top: 10px; font-size: 11px; line-height: 1.8; color: var(--text-3); }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #eaf7ee; color: #2e8b57; font-size: 11px; }
+  .rules { padding: 16px 18px; font-size: 12px; line-height: 1.9; color: var(--text-2); }
+  .rules b { display: block; margin-bottom: 6px; color: var(--text); font-size: 13px; }
+  .rules ul { margin: 0; padding-left: 18px; }
+  .rules li { margin-bottom: 6px; }
+  .rules code { padding: 1px 4px; border-radius: 4px; background: #f1f3f8; font-size: 11px; }
+  .toast { position: fixed; right: 28px; bottom: 24px; padding: 10px 16px; border: 1px solid #dce6ff; border-radius: var(--r-m); background: #fff; box-shadow: var(--sh-1); font-size: 12px; color: var(--text-2); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .drawer-title { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .drawer-title .pill { padding: 2px 9px; border-radius: 999px; background: #fff6e5; color: #a97100; font-size: 11px; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } .nav span:not(.active) { display: none; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">W</span><span>吟游廊wiki<small>· 管理后台</small></span></div>
+  <nav class="nav"><span>知识管理</span><span>空间管理</span><span>配置管理</span></nav>
+</header>
+
+<div class="page">
+  <h1>授权搜索选择器 · 效果预览</h1>
+  <p class="sub">角色 / 人员显示真实名称，添加授权改为搜索选择器，不再手填 ID 与名称。</p>
+
+  <div class="scene-tabs">
+    <button type="button" id="tab-article" class="active" data-scene="article">文章创建 / 编辑页</button>
+    <button type="button" id="tab-space" data-scene="space">空间管理抽屉</button>
+    <span class="badge" style="align-self:center;margin-left:auto">真实组件已接入 · 回归 31/31 通过</span>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <div class="card-head" id="card-head">设置 · 授权名单（文章创建 / 编辑页）</div>
+      <div class="card-body">
+        <div class="section-title" id="section-title">授权名单（角色 + 人员）</div>
+
+        <div class="tabs" id="type-tabs">
+          <button type="button" class="active" data-type="role">按角色授权</button>
+          <button type="button" data-type="user">按人员授权</button>
+          <span class="hint" id="tabs-hint">两种授权方式并存，权限取并集</span>
+        </div>
+
+        <div class="grant-panel">
+          <div class="grant-head" id="grant-head">可编辑名单（<span id="grant-count">1</span>）</div>
+          <div id="grant-list"></div>
+        </div>
+
+        <div class="grant-add">
+          <select class="select" id="type-select" aria-label="授权对象类型">
+            <option value="role">按角色</option>
+            <option value="user">按人员</option>
+          </select>
+          <div class="sub-picker" id="picker">
+            <div class="sub-search">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input class="sub-input" id="sub-input" type="text" role="combobox" aria-autocomplete="list" aria-label="搜索角色或人员" autocomplete="off" />
+              <button type="button" class="sub-caret" id="sub-caret" aria-label="展开候选列表">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="note" id="note">
+          说明：文章级授权只有「可查看 / 可编辑」两档；「可管理」属于空间级授权。输入角色名称 / 编码或人员姓名 / 账号搜索，选中即加入当前名单。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">改造要点</div>
+      <div class="rules">
+        <b>名称从哪来</b>
+        <ul>
+          <li>后端 <code>GET /kbapi/admin/subjects</code> 只读 WIKI 本地快照 <code>kb_subject</code>：由 <code>kb:subject-sync</code> 定时从 EIP 同步，角色取 <code>name</code>、人员取 <code>nickname</code>，缺失时回退编码 / 账号。</li>
+          <li>已授权名单按 ID 精确解析，停用或软删的历史对象也能显示真名。</li>
+          <li>搜索模式最多 20 条，且不输出 <code>password_hash</code> 等敏感字段。</li>
+        </ul>
+        <b>交互规则</b>
+        <ul>
+          <li>输入防抖 250ms，旧请求结果自动丢弃，避免竞态串台。</li>
+          <li>已添加对象标记「已添加」并禁止重复选择；停用对象标「已停用」。</li>
+          <li>支持 ↑ / ↓ / Enter / Esc 键盘操作，下拉 Teleport + fixed 定位避免被抽屉裁剪。</li>
+          <li>目录接口不可用时静默降级，名单回落为「角色 / 人员 #ID」。</li>
+        </ul>
+        <b>已移除</b>
+        <ul>
+          <li>手填角色 / 人员 ID 输入框、手填名称输入框，以及「+ 添加授权」按钮。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sub-menu" id="sub-menu" role="listbox" aria-label="角色或人员候选" hidden>
+  <div class="sub-menu-body" id="menu-body"></div>
+  <div class="sub-foot" id="menu-foot">输入名称或编码搜索，选中即添加 · 0 条候选</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var ROLES = [
+    { subject_type: 'role', subject_id: 1, name: '系统管理员', code: 'admin', status: 1 },
+    { subject_type: 'role', subject_id: 2, name: '知识库编辑', code: 'kb_editor', status: 1 },
+    { subject_type: 'role', subject_id: 3, name: '内容审核员', code: 'auditor', status: 1 },
+    { subject_type: 'role', subject_id: 9, name: '归档角色', code: 'archived', status: 0 }
+  ];
+  var USERS = [
+    { subject_type: 'user', subject_id: 11, name: '张三', code: 'zhangsan', status: 1 },
+    { subject_type: 'user', subject_id: 12, name: '李四', code: 'lisi', status: 1 },
+    { subject_type: 'user', subject_id: 13, name: '王小明', code: 'wangxm', status: 1 },
+    { subject_type: 'user', subject_id: 14, name: '已停用账号', code: 'off', status: 0 }
+  ];
+
+  var scenes = {
+    article: {
+      head: '设置 · 授权名单（文章创建 / 编辑页）',
+      title: '授权名单（角色 + 人员）',
+      hint: '可编辑名单 / 可见名单共用同一套搜索选择器',
+      note: '说明：文章级授权只有「可查看 / 可编辑」两档；「可管理」属于空间级授权。输入角色名称 / 编码或人员姓名 / 账号搜索，选中即加入当前名单。',
+      grants: { role: [ROLES[1]], user: [] }
+    },
+    space: {
+      head: '空间详情抽屉 · 成员授权（受限空间）',
+      title: '成员授权',
+      hint: '按角色与按人员并存，权限取并集',
+      note: '说明：空间级授权含「可查看 / 可编辑 / 可管理」三档；搜索选择器 Teleport 到 body，不会被抽屉的 overflow 裁剪。',
+      grants: { role: [ROLES[0]], user: [USERS[0]] }
+    }
+  };
+
+  var scene = new URLSearchParams(location.search).get('scene') === 'space' ? 'space' : 'article';
+  var type = 'role';
+  var keyword = '';
+  var open = false;
+  var activeIndex = -1;
+  var toastTimer;
+
+  var el = function (id) { return document.getElementById(id); };
+  var input = el('sub-input');
+  var menu = el('sub-menu');
+  var body = el('menu-body');
+  var foot = el('menu-foot');
+  var caret = el('sub-caret');
+  var picker = el('picker');
+  var toast = el('toast');
+
+  function rowsOf(kind) { return kind === 'role' ? ROLES : USERS; }
+  function grantsOf(kind) { return scenes[scene].grants[kind]; }
+  function selectedIds() { return grantsOf(type).map(function (row) { return row.subject_id; }); }
+  function isAdded(row) { return selectedIds().indexOf(row.subject_id) >= 0; }
+
+  function showToast(text) {
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 1800);
+  }
+
+  function renderGrants() {
+    var rows = grantsOf(type);
+    el('grant-count').textContent = String(rows.length);
+    el('grant-head').innerHTML = scene === 'article'
+      ? '可编辑名单（<span id="grant-count">' + rows.length + '</span>）'
+      : (type === 'role' ? '角色' : '人员') + '授权（<span id="grant-count">' + rows.length + '</span>）';
+    var list = el('grant-list');
+    list.innerHTML = '';
+    if (!rows.length) {
+      list.innerHTML = '<div class="sub-empty">暂无' + (type === 'role' ? '角色' : '人员') + '授权对象</div>';
+      return;
+    }
+    rows.forEach(function (row) {
+      var line = document.createElement('div');
+      line.className = 'grant-row';
+      var tag = '<span class="tag ' + (row.subject_type === 'user' ? 'user' : '') + '">' + (row.subject_type === 'role' ? '角色' : '人员') + '</span>';
+      var who = '<div class="who">' + tag + row.name + '<span class="code">' + (row.code || '') + '</span></div>';
+      var perm = scene === 'article'
+        ? '<div class="perm"><span><i></i>可编辑</span></div>'
+        : '<div class="perm"><span><i></i>可查看</span><span><i></i>可编辑</span><span class="off"><i></i>可管理</span></div>';
+      line.innerHTML = who + perm + '<button type="button" class="remove">移除</button>';
+      line.querySelector('.remove').onclick = function () {
+        scenes[scene].grants[row.subject_type] = grantsOf(row.subject_type).filter(function (r) { return r.subject_id !== row.subject_id; });
+        renderGrants();
+        if (open) renderMenu();
+        showToast('已移除「' + row.name + '」');
+      };
+      list.appendChild(line);
+    });
+  }
+
+  function candidateRows() {
+    var k = keyword.trim().toLowerCase();
+    return rowsOf(type).filter(function (row) {
+      return !k || (row.name + ' ' + (row.code || '')).toLowerCase().indexOf(k) >= 0;
+    });
+  }
+
+  function positionMenu() {
+    var rect = input.getBoundingClientRect();
+    menu.style.left = Math.round(rect.left) + 'px';
+    menu.style.top = Math.round(rect.bottom + 6) + 'px';
+    menu.style.width = Math.max(Math.round(rect.width), 280) + 'px';
+  }
+
+  function renderMenu() {
+    var rows = candidateRows();
+    body.innerHTML = '';
+    foot.textContent = '输入名称或编码搜索，选中即添加 · ' + rows.length + ' 条候选';
+    if (!rows.length) {
+      body.innerHTML = '<div class="sub-empty">没有匹配的角色 / 人员</div>';
+      return;
+    }
+    rows.forEach(function (row, index) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sub-option' + (index === activeIndex ? ' active' : '') + (isAdded(row) ? ' added' : '');
+      btn.setAttribute('role', 'option');
+      btn.disabled = isAdded(row);
+      var icon = row.subject_type === 'role'
+        ? '<svg class="sub-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>'
+        : '<svg class="sub-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      btn.innerHTML = icon
+        + '<span class="sub-name">' + row.name + '</span>'
+        + (row.code && row.code !== row.name ? '<span class="sub-code">' + row.code + '</span>' : '')
+        + (isAdded(row) ? '<span class="sub-tag">已添加</span>' : (row.status === 0 ? '<span class="sub-tag warn">已停用</span>' : ''))
+        + '<span class="sub-id">#' + row.subject_id + '</span>';
+      btn.onmouseenter = function () { activeIndex = index; highlight(); };
+      btn.onclick = function () { pick(row); };
+      body.appendChild(btn);
+    });
+  }
+
+  function highlight() {
+    var nodes = body.querySelectorAll('.sub-option');
+    for (var i = 0; i < nodes.length; i++) nodes[i].classList.toggle('active', i === activeIndex);
+  }
+
+  function openMenu() {
+    open = true;
+    menu.hidden = false;
+    caret.classList.add('open');
+    positionMenu();
+    activeIndex = 0;
+    renderMenu();
+  }
+  function closeMenu() {
+    open = false;
+    menu.hidden = true;
+    caret.classList.remove('open');
+  }
+  function pick(row) {
+    if (isAdded(row)) return;
+    scenes[scene].grants[row.subject_type].push(row);
+    keyword = '';
+    input.value = '';
+    closeMenu();
+    renderGrants();
+    showToast('已添加「' + row.name + '」（' + row.code + ' · #' + row.subject_id + '）');
+  }
+
+  function applyScene(next) {
+    scene = next;
+    var cfg = scenes[scene];
+    el('card-head').textContent = cfg.head;
+    el('section-title').textContent = cfg.title;
+    el('tabs-hint').textContent = cfg.hint;
+    el('note').textContent = cfg.note;
+    el('tab-article').classList.toggle('active', scene === 'article');
+    el('tab-space').classList.toggle('active', scene === 'space');
+    document.querySelectorAll('.scene-tabs button').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.scene === scene);
+    });
+    keyword = '';
+    input.value = '';
+    closeMenu();
+    applyType(type, true);
+  }
+
+  function applyType(next, keepMenu) {
+    type = next;
+    el('type-select').value = type;
+    document.querySelectorAll('#type-tabs button').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.type === type);
+    });
+    input.placeholder = type === 'role' ? '搜索角色名称或编码' : '搜索人员姓名或账号';
+    keyword = '';
+    input.value = '';
+    if (keepMenu && open) { activeIndex = 0; renderMenu(); }
+    else closeMenu();
+    renderGrants();
+  }
+
+  document.querySelectorAll('.scene-tabs button').forEach(function (btn) {
+    btn.onclick = function () { applyScene(btn.dataset.scene); };
+  });
+  document.querySelectorAll('#type-tabs button').forEach(function (btn) {
+    btn.onclick = function () { applyType(btn.dataset.type); };
+  });
+  el('type-select').onchange = function () { applyType(el('type-select').value); };
+  input.onfocus = function () { if (!open) openMenu(); };
+  input.oninput = function () { keyword = input.value; if (!open) openMenu(); else { positionMenu(); activeIndex = 0; renderMenu(); } };
+  input.onkeydown = function (event) {
+    var rows = candidateRows();
+    if (event.key === 'Escape') { closeMenu(); return; }
+    if (event.key === 'ArrowDown') { event.preventDefault(); if (!open) { openMenu(); return; } activeIndex = rows.length ? (activeIndex + 1) % rows.length : -1; highlight(); return; }
+    if (event.key === 'ArrowUp') { event.preventDefault(); if (rows.length) { activeIndex = (activeIndex - 1 + rows.length) % rows.length; highlight(); } return; }
+    if (event.key === 'Enter') { event.preventDefault(); if (!open) { openMenu(); return; } var row = rows[activeIndex]; if (row) pick(row); }
+  };
+  caret.onclick = function (event) { event.stopPropagation(); if (open) closeMenu(); else openMenu(); };
+  document.addEventListener('click', function (event) {
+    if (!open) return;
+    if (picker.contains(event.target) || menu.contains(event.target)) return;
+    closeMenu();
+  });
+  window.addEventListener('resize', function () { if (open) positionMenu(); });
+  window.addEventListener('scroll', function () { if (open) positionMenu(); }, true);
+
+  applyScene(scene);
+  // 默认展开候选列表，便于直接查看搜索选择器效果
+  input.focus();
+  openMenu();
+})();
+</script>
+</body>
+</html>

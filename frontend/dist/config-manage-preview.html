@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>配置管理 · 效果预览</title>
+<style>
+  :root {
+    --line: #e6e9f0; --text: #1c2333; --text-2: #545c6e; --text-3: #8a93a6;
+    --primary: #2b5ce6; --primary-2: #6c8cff; --bg: #f5f7fb; --red: #e04b4b;
+    --r-s: 8px; --r-m: 12px; --r-l: 16px;
+    --sh-1: 0 1px 2px rgba(20, 30, 60, .04), 0 8px 24px rgba(20, 30, 60, .06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+  .topbar { display: flex; align-items: center; gap: 24px; height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; white-space: nowrap; }
+  .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg, #2b5ce6, #6c8cff); color: #fff; }
+  .brand small { display: block; font-weight: 400; font-size: 11px; color: var(--text-3); }
+  .space-btn { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: #fff; color: var(--text-2); font-size: 12px; }
+  .nav { display: flex; gap: 4px; margin-left: auto; }
+  .nav a { padding: 8px 14px; border-radius: var(--r-s); color: var(--text-2); font-size: 13px; text-decoration: none; }
+  .nav a.active { background: #eef3ff; color: var(--primary); font-weight: 600; }
+  .pill { padding: 4px 10px; border-radius: 999px; background: #fff6e5; color: #a97100; font-size: 11px; }
+  .page { max-width: 1200px; margin: 0 auto; padding: 28px 28px 60px; }
+  .toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  .sub { margin: 0; font-size: 12px; color: var(--text-3); }
+  .toolbar-right { display: flex; align-items: center; gap: 10px; }
+  .btn { padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: #fff; color: var(--text-2); font-size: 12px; }
+  .btn:hover { border-color: var(--primary-2); color: var(--primary); }
+  .btn-primary { border-color: var(--primary); background: var(--primary); color: #fff; }
+  .btn-primary:hover { color: #fff; background: #1f4bd0; }
+  .btn-sm { padding: 4px 9px; font-size: 12px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .notice { display: flex; gap: 12px; margin: 16px 0 18px; padding: 12px 16px; border: 1px solid #dce6ff; border-radius: var(--r-m); background: #f4f7ff; font-size: 12px; line-height: 1.8; color: var(--text-2); }
+  .notice b { flex: none; color: var(--primary); }
+  .card { border: 1px solid var(--line); border-radius: var(--r-l); background: #fff; box-shadow: var(--sh-1); overflow: hidden; }
+  .card-head { display: flex; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); background: #fafbfe; font-size: 12px; color: var(--text-3); }
+  .row { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: none; }
+  .row:hover { background: rgba(43, 92, 230, .025); }
+  .row.system { background: #fafbfe; }
+  .indent { flex: none; }
+  .folder { flex: none; color: var(--primary-2); }
+  .name { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 13px; }
+  .level { flex: none; padding: 1px 7px; border: 1px solid #dce6ff; border-radius: 999px; background: #eef3ff; color: var(--primary); font-size: 11px; font-weight: 600; }
+  .tag { flex: none; padding: 1px 6px; border: 1px solid var(--line); border-radius: 999px; background: #f6f8fc; color: var(--text-3); font-size: 10px; }
+  .count { flex: none; width: 52px; text-align: right; font-size: 11px; color: var(--text-3); }
+  .ops { display: flex; justify-content: flex-end; gap: 6px; flex: none; min-width: 340px; }
+  .locked { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-3); }
+  .danger { color: var(--red); border-color: #ffd7d7; }
+  .danger:hover { background: #fff1f1; color: var(--red); border-color: #ffd7d7; }
+  .name-input { width: 160px; padding: 5px 8px; border: 1px solid var(--line); border-radius: var(--r-s); font-size: 12px; }
+  .move { margin: 0 16px 12px; padding: 14px 16px; border: 1px solid #dce6ff; border-radius: var(--r-m); background: #f8faff; }
+  .move-title { margin-bottom: 10px; font-size: 12px; font-weight: 600; }
+  .move-list { display: grid; gap: 2px; max-height: 168px; overflow: auto; }
+  .opt { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 8px; border-radius: var(--r-s); font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .opt:hover { background: #eef3ff; }
+  .opt .level { margin-left: auto; }
+  .move-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--text-3); }
+  .move-foot span { margin-right: auto; }
+  .toast { position: fixed; right: 28px; bottom: 24px; max-width: 460px; padding: 10px 16px; border: 1px solid #dce6ff; border-radius: var(--r-m); background: #fff; box-shadow: var(--sh-1); color: var(--text-2); font-size: 12px; }
+  .legend { margin-top: 18px; font-size: 12px; color: var(--text-3); }
+  @media (max-width: 900px) { .ops { min-width: 0; flex-wrap: wrap; } .count, .nav a:not(.active) { display: none; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">W</span><span>吟游廊wiki<small>· 管理后台</small></span></div>
+  <button class="space-btn" type="button">运营活动手册 ▾</button>
+  <nav class="nav">
+    <a href="javascript:void(0)">知识管理</a>
+    <a href="javascript:void(0)">空间管理</a>
+    <a href="javascript:void(0)" class="active">配置管理</a>
+  </nav>
+  <span class="pill">本地环境</span>
+</header>
+
+<main class="page">
+  <div class="toolbar">
+    <div>
+      <h1>配置管理</h1>
+      <p class="sub">管理当前空间的目录结构；「未指定目录」由系统维护，永远置底且不可变更。</p>
+    </div>
+    <div class="toolbar-right">
+      <button class="space-btn" type="button">运营活动手册 ▾</button>
+      <button class="btn" type="button" id="refresh">↻ 刷新</button>
+    </div>
+  </div>
+
+  <div class="notice">
+    <b>结构规则</b>
+    <span>① 调整位置后，子目录与其下文章随目录整体迁移到新结构；② 删除目录时，子目录与文章直接移至「未指定目录」；③ 目录最多 L5；④ 「未指定目录」不可改名、移动、排序或删除。</span>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><span>目录列表 · 9 个</span><span>当前空间：运营活动手册</span></div>
+    <div id="rows"></div>
+  </div>
+
+  <div class="legend">静态效果预览：可点「调整位置」展开层级选择面板，点「删除 / 改名 / 上移 / 下移」查看反馈；系统默认目录的所有结构操作均为禁用态。</div>
+</main>
+
+<div class="toast" id="toast">配置管理：目录按层级缩进展示，系统默认「未指定目录」及其子目录永远置底。</div>
+
+<script>
+const rows = [
+  { id: 1, name: '策划案', depth: 0, count: 0 },
+  { id: 2, name: 'A功能', depth: 1, count: 3 },
+  { id: 3, name: 'B功能', depth: 1, count: 3 },
+  { id: 4, name: '会议纪要', depth: 0, count: 0 },
+  { id: 5, name: '2026年', depth: 1, count: 0 },
+  { id: 6, name: '版本复盘', depth: 2, count: 2 },
+  { id: 7, name: '三方会议', depth: 2, count: 0 },
+  { id: 8, name: '未指定目录', depth: 0, count: 3, system: true },
+  { id: 9, name: '历史归档', depth: 1, count: 1 },
+];
+const $ = (id) => document.getElementById(id);
+const toast = (text) => { $('toast').textContent = text; };
+let movingId = 0;
+let editingId = 0;
+let draftName = '';
+
+function render() {
+  const box = $('rows');
+  box.innerHTML = '';
+  for (const row of rows) {
+    const line = document.createElement('div');
+    line.className = 'row' + (row.system ? ' system' : '');
+    const nameHtml = editingId === row.id
+      ? '<input class="name-input" id="draft" maxlength="15" value="' + draftName + '" />' +
+        '<button class="btn btn-sm btn-primary" data-act="save" type="button">保存</button>' +
+        '<button class="btn btn-sm" data-act="cancel" type="button">取消</button>'
+      : '<span>' + row.name + '</span>' + (row.system ? '<span class="tag">系统默认</span>' : '');
+    const opsHtml = row.system
+      ? '<span class="locked">🔒 不可调整</span>'
+      : '<button class="btn btn-sm" data-act="edit" type="button">✎ 改名</button>' +
+        '<button class="btn btn-sm" data-act="move" type="button">⇄ 调整位置</button>' +
+        '<button class="btn btn-sm" data-act="up" type="button" title="上移">↑</button>' +
+        '<button class="btn btn-sm" data-act="down" type="button" title="下移">↓</button>' +
+        '<button class="btn btn-sm danger" data-act="remove" type="button">🗑 删除</button>';
+    line.innerHTML = '<span class="indent" style="width:' + row.depth * 18 + 'px"></span>' +
+      '<span class="folder">▤</span>' +
+      '<div class="name">' + nameHtml + '</div>' +
+      '<span class="level">L' + (row.depth + 1) + '</span>' +
+      '<span class="count">' + row.count + ' 篇</span>' +
+      '<div class="ops">' + opsHtml + '</div>';
+    line.querySelectorAll('[data-act]').forEach((btn) => {
+      btn.addEventListener('click', () => action(btn.dataset.act, row));
+    });
+    box.append(line);
+
+    if (movingId === row.id) {
+      const panel = document.createElement('div');
+      panel.className = 'move';
+      const options = rows.filter((item) => item.id !== row.id && item.depth < 4);
+      panel.innerHTML = '<div class="move-title">把「' + row.name + '」调整到：</div>' +
+        '<div class="move-list">' +
+        '<label class="opt"><input type="radio" name="parent" value="0" checked /><span>作为一级目录（空间根目录）</span></label>' +
+        options.map((item) => '<label class="opt"><input type="radio" name="parent" value="' + item.id + '" />' +
+          '<span class="indent" style="width:' + item.depth * 16 + 'px"></span><span>' + item.name + '</span>' +
+          '<span class="level">L' + (item.depth + 1) + '</span>' +
+          (item.system ? '<span class="tag">系统默认</span>' : '') + '</label>').join('') +
+        '</div>' +
+        '<div class="move-foot"><span>子目录与文章将随该目录整体迁移，无需单独调整。</span>' +
+        '<button class="btn btn-sm" data-act="cancelMove" type="button">取消</button>' +
+        '<button class="btn btn-sm btn-primary" data-act="saveMove" type="button">保存位置</button></div>';
+      panel.querySelectorAll('[data-act]').forEach((btn) => {
+        btn.addEventListener('click', () => action(btn.dataset.act, row));
+      });
+      box.append(panel);
+    }
+  }
+  const draft = $('draft');
+  if (draft) { draft.focus(); draft.addEventListener('input', (e) => { draftName = e.target.value; }); }
+}
+
+function action(act, row) {
+  if (act === 'edit') { editingId = row.id; draftName = row.name; movingId = 0; render(); return; }
+  if (act === 'cancel') { editingId = 0; render(); return; }
+  if (act === 'save') { editingId = 0; toast('已重命名目录；子目录与文章保持原结构不变。'); render(); return; }
+  if (act === 'move') { movingId = row.id; editingId = 0; toast('选择新的父目录；改 parent_id 后子目录与文章整体迁移。'); render(); return; }
+  if (act === 'cancelMove') { movingId = 0; render(); return; }
+  if (act === 'saveMove') { movingId = 0; toast('位置已调整：子目录与其下文章随目录整体迁移到新结构。'); render(); return; }
+  if (act === 'remove') { toast('删除「' + row.name + '」：子目录与文章直接移至「未指定目录」，不会被删除。'); return; }
+  if (act === 'up' || act === 'down') { toast('同级顺序已调整（按 sort 排列），系统默认目录始终置底。'); return; }
+}
+
+$('refresh').addEventListener('click', () => { movingId = 0; editingId = 0; render(); toast('已刷新当前空间的目录结构。'); });
+// ?move=1 用于截图展示「调整位置」层级选择面板
+if (new URLSearchParams(location.search).has('move')) {
+  movingId = 4;
+  toast('选择新的父目录；改 parent_id 后子目录与文章整体迁移。');
+}
+render();
+</script>
+</body>
+</html>
