@@ -202,6 +202,27 @@ export interface UploadCheckResult {
   status: string
 }
 
+/** 分片合并完成响应：附件记录已创建，后续处理由队列推进 */
+export interface UploadCompleteResult {
+  attachment_id: number
+  original_name: string
+  status: AttachmentStatus
+  type: AttachmentType
+}
+
+/** 附件状态轮询响应：仅返回前端回显所需字段 */
+export interface UploadStatusResult {
+  id: number
+  article_id: number
+  type: AttachmentType
+  original_name: string
+  status: AttachmentStatus
+  duration: number
+  size: number
+  thumb_path: string | null
+  fail_reason: string | null
+}
+
 // ---------- 通用 ----------
 
 export interface PageResult<T> {

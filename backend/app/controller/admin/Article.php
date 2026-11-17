@@ -59,6 +59,11 @@ class Article extends BaseController
             return resp_fail('该空间不允许你创建内容');
         }
 
+        // 编辑页当前附件清单；旧客户端未带该字段时不触发全量解绑
+        $attachmentIds = array_key_exists('attachment_ids', $data) && is_array($data['attachment_ids'])
+            ? $data['attachment_ids']
+            : null;
+
         // 未指定目录的文章统一归入该空间的「未指定目录」，不再散落为 category_id=0
         $categoryId = (int) ($data['category_id'] ?? 0);
         if ($categoryId <= 0) {
@@ -76,7 +81,7 @@ class Article extends BaseController
             'status'      => $data['status'] ?? ArticleModel::STATUS_DRAFT,
             'view_scope'  => $data['view_scope'] ?? ArticleModel::SCOPE_PUBLIC,
             'edit_mode'   => $data['edit_mode'] ?? ArticleModel::EDIT_OPEN,
-        ], kb_user_id());
+        ], kb_user_id(), $attachmentIds);
 
         return resp_ok(['id' => (int) $article->id], '创建成功');
     }
@@ -86,6 +91,10 @@ class Article extends BaseController
     {
         $id   = (int) $this->request->param('id', 0);
         $data = $this->postData();
+        // 编辑页当前附件清单；旧客户端未带该字段时不触发全量解绑
+        $attachmentIds = array_key_exists('attachment_ids', $data) && is_array($data['attachment_ids'])
+            ? $data['attachment_ids']
+            : null;
 
         $article = $this->activeArticle($id);
         if (!$article) {
@@ -109,7 +118,7 @@ class Article extends BaseController
         if (isset($patch['category_id']) && (int) $patch['category_id'] <= 0) {
             $patch['category_id'] = (new CategoryService())->ensureDefaultCategory((int) $row['space_id']);
         }
-        (new ArticleService())->update($id, $patch);
+        (new ArticleService())->update($id, $patch, $attachmentIds);
         return resp_ok([], '保存成功');
     }
 

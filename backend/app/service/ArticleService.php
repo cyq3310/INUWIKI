@@ -375,9 +375,12 @@ class ArticleService
     /**
      * 新建文章（正文过 XSS 白名单）
      */
-    public function create(array $data, int $userId): Article
+    public function create(array $data, int $userId, ?array $attachmentIds = null): Article
     {
         $data['content']     = PurifierService::purify((string) ($data['content'] ?? ''));
+        if ($attachmentIds !== null) {
+            $data['content'] = $this->stripRemovedAttachmentNodes((string) $data['content'], $attachmentIds);
+        }
         $data['author_id']   = $userId;
         $data['view_count']  = 0;
         $data['created_at']  = date('Y-m-d H:i:s');
@@ -387,6 +390,9 @@ class ArticleService
         }
         $article = Article::create($data);
         $this->bindContentAssets((int) $article->id, (string) $data['content']);
+        if ($attachmentIds !== null) {
+            $this->syncListedAttachments((int) $article->id, (string) $data['content'], $attachmentIds, $userId, kb_is_super());
+        }
         $this->snapshotVersion($article->toArray(), $userId);
         return $article;
     }
@@ -434,9 +440,83 @@ class ArticleService
     }
 
     /**
+     * 清理正文里不在当前附件清单中的视频 / 文件占位节点。
+     * 前端移除按钮已做同样处理，这里兜底历史正文和旧客户端，避免阅读页残留卡片。
+     */
+    private function stripRemovedAttachmentNodes(string $content, array $attachmentIds): string
+    {
+        if ($content === '') {
+            return $content;
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $attachmentIds))));
+
+        $patterns = [
+            '#<div\b[^>]*\bdata-kb-(?:video|file)="(\d+)"[^>]*>.*?</div>#is',
+            '#<a\b[^>]*\bdata-kb-file="(\d+)"[^>]*>.*?</a>#is',
+        ];
+        foreach ($patterns as $pattern) {
+            $content = preg_replace_callback(
+                $pattern,
+                static function (array $match) use ($ids): string {
+                    return in_array((int) $match[1], $ids, true) ? $match[0] : '';
+                },
+                $content
+            ) ?? $content;
+        }
+        return $content;
+    }
+
+    /**
+     * 按编辑页当前清单全量同步视频 / 文件附件归属。
+     *
+     * 正文占位节点与 attachment_ids 取并集：移除按钮会删掉正文占位并从清单去掉 ID，
+     * 保存后服务端把不再出现的附件 article_id 清零，阅读页就不会再返回或渲染它。
+     * 图片仍由 bindContentAssets 按正文 URL 单独绑定，不参与这里的解绑。
+     */
+    private function syncListedAttachments(
+        int $articleId,
+        string $content,
+        array $attachmentIds,
+        int $userId,
+        bool $isSuperAdmin
+    ): void {
+        if ($articleId <= 0) {
+            return;
+        }
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', $attachmentIds))));
+        if (preg_match_all('/data-kb-(?:video|file)\s*=\s*["\'](\d+)["\']/i', $content, $matches)) {
+            $ids = array_values(array_unique(array_filter(array_merge(
+                $ids,
+                array_map('intval', $matches[1])
+            ))));
+        }
+
+        if ($ids !== []) {
+            $query = Db::name('kb_attachment')
+                ->whereIn('id', $ids)
+                ->whereIn('article_id', [0, $articleId])
+                ->whereIn('type', ['video', 'file']);
+            if (!$isSuperAdmin && $userId > 0) {
+                $query->where('created_by', $userId);
+            }
+            $query->update(['article_id' => $articleId]);
+        }
+
+        // 仅解绑视频 / 文件；正文图片的归属由 URL 绑定逻辑维护
+        $stale = Db::name('kb_attachment')
+            ->where('article_id', $articleId)
+            ->whereIn('type', ['video', 'file']);
+        if ($ids !== []) {
+            $stale->whereNotIn('id', $ids);
+        }
+        $stale->update(['article_id' => 0]);
+    }
+
+    /**
      * 更新文章（正文过 XSS 白名单）
      */
-    public function update(int $id, array $data): bool
+    public function update(int $id, array $data, ?array $attachmentIds = null): bool
     {
         $article = Article::where('id', $id)
             ->where('status', '<>', Article::STATUS_DELETED)
@@ -448,6 +528,9 @@ class ArticleService
 
         if (isset($data['content'])) {
             $data['content'] = PurifierService::purify((string) $data['content']);
+            if ($attachmentIds !== null) {
+                $data['content'] = $this->stripRemovedAttachmentNodes((string) $data['content'], $attachmentIds);
+            }
         }
         $data['updated_at'] = date('Y-m-d H:i:s');
         if (($data['status'] ?? '') === Article::STATUS_PUBLISHED && !$article->published_at) {
@@ -460,6 +543,10 @@ class ArticleService
             $this->snapshotVersion(array_merge($before, $data), kb_user_id());
             if (isset($data['content'])) {
                 $this->bindContentAssets($id, (string) $data['content']);
+            }
+            if ($attachmentIds !== null) {
+                $content = (string) ($data['content'] ?? $article->content ?? '');
+                $this->syncListedAttachments($id, $content, $attachmentIds, kb_user_id(), kb_is_super());
             }
         }
         return $saved;

@@ -41,6 +41,8 @@ const EXT_GRADIENT: Record<string, string> = {
   ppt: 'g6',
   pptx: 'g6',
   zip: 'g4',
+  fbx: 'g7',
+  glb: 'g8',
   png: 'g5',
   jpg: 'g5',
   jpeg: 'g5',
@@ -73,13 +75,12 @@ const closeLightbox = () => {
       <!-- 纯 HTML 段 -->
       <div v-if="block.kind === 'html'" class="article-body" v-html="block.html" @click="onContentClick"></div>
 
-      <!-- 正文内嵌视频 -->
+      <!-- 正文内嵌视频；附件已解绑 / 未随文章返回时不再渲染残留占位 -->
       <div
-        v-else-if="block.kind === 'video'"
+        v-else-if="block.kind === 'video' && attachmentMap.get(block.attachmentId)"
         style="margin: 18px 0; border-radius: var(--r-m); overflow: hidden; box-shadow: var(--sh-2)"
       >
         <KbVideoPlayer
-          v-if="attachmentMap.get(block.attachmentId)"
           :src="playUrl(block.attachmentId)"
           :poster="resolveUploadUrl(attachmentMap.get(block.attachmentId)?.thumb_path || '')"
           :title="attachmentMap.get(block.attachmentId)?.original_name || ''"
@@ -89,15 +90,10 @@ const closeLightbox = () => {
               : `视频当前状态：${attachmentMap.get(block.attachmentId)?.status || '未知'}`
           "
         />
-        <div v-else class="kb-player" style="aspect-ratio: 16 / 4">
-          <div class="kb-player-error">
-            该视频附件（ID {{ block.attachmentId }}）未随本文返回，可能已被移除或尚未绑定到文章
-          </div>
-        </div>
       </div>
 
-      <!-- 正文内嵌附件 -->
-      <div v-else class="kb-file-card">
+      <!-- 正文内嵌附件；已移除的附件不再显示兜底卡片与下载入口 -->
+      <div v-else-if="block.kind === 'file' && attachmentMap.get(block.attachmentId)" class="kb-file-card">
         <div class="kb-file-icon" :class="gradientOf(attachmentMap.get(block.attachmentId)?.original_name || block.text)">
           {{ (fileExt(attachmentMap.get(block.attachmentId)?.original_name || block.text) || 'file').slice(0, 4) }}
         </div>
@@ -110,7 +106,11 @@ const closeLightbox = () => {
             <template v-if="attachmentMap.get(block.attachmentId)?.status === 'failed'"> · 转码失败</template>
           </div>
         </div>
-        <a :href="playUrl(block.attachmentId)" class="btn btn-sm">
+        <a
+          :href="playUrl(block.attachmentId)"
+          :download="attachmentMap.get(block.attachmentId)?.original_name || block.text || undefined"
+          class="btn btn-sm"
+        >
           <Download :size="14" />下载
         </a>
       </div>

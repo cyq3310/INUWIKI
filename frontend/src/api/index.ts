@@ -3,7 +3,6 @@ import type {
   ArticleItem,
   ArticleStats,
   ArticleVersion,
-  Attachment,
   AttachmentType,
   CategoryNode,
   DocType,
@@ -21,8 +20,10 @@ import type {
   SubjectOption,
   SubjectType,
   UploadCheckResult,
+  UploadCompleteResult,
   UploadInitPayload,
   UploadInitResult,
+  UploadStatusResult,
   UserProfile,
 } from '../types'
 
@@ -125,8 +126,8 @@ export const articleApi = {
   setGrants: (id: number, kind: 'editor' | 'viewer', subjects: { subject_type: SubjectType; subject_id: number }[]) =>
     request.post(`/admin/articles/${id}/grants`, { kind, subjects }),
   /**
-   * 把已上传附件挂到文章上（后端 route/app.php 暂未提供该接口，属可选能力）。
-   * 静默调用：后端未实现时不弹错误提示，前端降级为「本次会话附件」展示。
+   * 独立绑定接口保留兼容；文章保存接口现在会按 attachment_ids 全量同步附件归属，
+   * 编辑页不再依赖这个额外调用，避免保存后立刻跳转导致绑定丢失。
    */
   attach: (id: number, attachmentIds: number[]) =>
     request.post(`/admin/articles/${id}/attachments`, { attachment_ids: attachmentIds }, { silent: true }) as Promise<{
@@ -164,14 +165,14 @@ export const uploadApi = {
     form.append('type', type)
     return request.post('/admin/kb/uploads/chunk', form) as Promise<{ data: { index: number } }>
   },
-  /** 合并 + 入队转码，立即返回 */
+  /** 合并 + 入队转码，立即返回「附件已创建」结果 */
   complete: (uploadId: string, type: AttachmentType) =>
     request.post('/admin/kb/uploads/complete', { upload_id: uploadId, type }) as Promise<{
-      data: { attachment_id: number; status: string; type: string }
+      data: UploadCompleteResult
     }>,
   /** 附件状态轮询（pending / merging / transcoding / ready / failed） */
   attachment: (id: number) =>
-    request.get('/admin/kb/attachments', { params: { id } }) as Promise<{ data: Attachment }>,
+    request.get('/admin/kb/attachments', { params: { id } }) as Promise<{ data: UploadStatusResult }>,
   /** 图片快捷上传（封面 / 正文配图） */
   image: (file: File) => {
     const form = new FormData()

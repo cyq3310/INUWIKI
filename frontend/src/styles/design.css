@@ -2275,6 +2275,15 @@ textarea.input {
 .rise {
   animation: rise 0.5s var(--ease) both;
 }
+@keyframes kb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.kb-spin {
+  animation: kb-spin 0.9s linear infinite;
+  transform-origin: center;
+}
 .d1 {
   animation-delay: 0.05s;
 }
@@ -2287,7 +2296,8 @@ textarea.input {
 
 /* 无头截图 / 减少动态偏好时：禁用入场动画，保证内容立即可见 */
 @media (prefers-reduced-motion: reduce) {
-  .rise {
+  .rise,
+  .kb-spin {
     animation: none;
   }
   .zoom,

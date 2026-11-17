@@ -101,13 +101,15 @@ class Upload extends BaseController
         }
 
         return resp_ok([
-            'id'         => (int) $row['id'],
-            'type'       => $row['type'],
-            'status'     => $row['status'],
-            'duration'   => (int) $row['duration'],
-            'size'       => (int) $row['size'],
-            'thumb_path' => $row['thumb_path'],
-            'fail_reason' => $row['fail_reason'],
+            'id'            => (int) $row['id'],
+            'article_id'    => (int) $row['article_id'],
+            'type'          => $row['type'],
+            'original_name' => (string) ($row['original_name'] ?? ''),
+            'status'        => $row['status'],
+            'duration'      => (int) $row['duration'],
+            'size'          => (int) $row['size'],
+            'thumb_path'    => $row['thumb_path'],
+            'fail_reason'   => $row['fail_reason'],
         ]);
     }
 

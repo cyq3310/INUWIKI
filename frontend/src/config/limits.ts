@@ -18,8 +18,8 @@ export const UPLOAD_LIMITS: Record<AttachmentType, { max: number; ext: string[];
   },
   file: {
     max: 50 * 1024 * 1024,
-    ext: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'txt'],
-    label: 'PDF / Office / ZIP / TXT，单个最大 50 MB',
+    ext: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'txt', 'fbx', 'glb'],
+    label: 'PDF / Office / ZIP / TXT / FBX / GLB，单个最大 50 MB',
   },
 }
 

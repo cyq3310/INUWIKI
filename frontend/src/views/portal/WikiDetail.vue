@@ -41,6 +41,7 @@ const EXT_GRADIENT: Record<string, string> = {
   pdf: 'g3', doc: 'g1', docx: 'g1', xls: 'g2', xlsx: 'g2',
   ppt: 'g6', pptx: 'g6', zip: 'g4', png: 'g5', jpg: 'g5',
   jpeg: 'g5', webp: 'g5', gif: 'g5', txt: 'g1',
+  fbx: 'g7', glb: 'g8',
 }
 const gradientOf = (name: string) => EXT_GRADIENT[fileExt(name)] || 'g1'
 
@@ -268,7 +269,7 @@ watch(
                     <template v-else-if="att.status !== 'ready'"> · {{ att.status }}</template>
                   </div>
                 </div>
-                <a :href="playUrl(att.id)" class="btn btn-sm">
+                <a :href="playUrl(att.id)" :download="att.original_name || undefined" class="btn btn-sm">
                   <Download :size="14" />下载
                 </a>
               </div>

@@ -59,12 +59,18 @@ class Media extends BaseController
         }
 
         $mime = $attachment['mime'] ?: 'application/octet-stream';
-        $name = (string) ($attachment['original_name'] ?: ('attachment-' . $attachmentId));
 
-        // 视频保持 inline 供 <video> 播放；附件强制下载并保留原始文件名（含中文）
-        $disposition = $attachment['type'] === 'video'
-            ? 'inline'
-            : "attachment; filename*=UTF-8''" . rawurlencode($name);
+        // 去掉可能污染响应头的字符；同时提供 ASCII filename 与 RFC 5987 filename*，
+        // 兼容中文原名及不识别 filename* 的下载器。
+        $name = str_replace(["\r", "\n", '"'], '', (string) ($attachment['original_name'] ?: ('attachment-' . $attachmentId)));
+        $name = trim(basename(str_replace('\\', '/', $name)));
+        if ($name === '') {
+            $name = 'attachment-' . $attachmentId;
+        }
+        $asciiName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $name) ?: ('attachment-' . $attachmentId);
+        $encodedName = rawurlencode($name);
+        $mode = $attachment['type'] === 'video' ? 'inline' : 'attachment';
+        $disposition = sprintf('%s; filename="%s"; filename*=UTF-8\'\'%s', $mode, $asciiName, $encodedName);
 
         $headers = [
             'X-Accel-Buffering'      => 'no',

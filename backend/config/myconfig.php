@@ -85,7 +85,7 @@ return [
         'file_max'        => 50 * 1024 * 1024,     // 单个附件上限 50MB
         'image_ext'       => ['jpg', 'jpeg', 'png', 'webp', 'gif'],
         'video_ext'       => ['mp4', 'mov', 'mkv', 'avi', 'webm'],
-        'file_ext'        => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'txt'],
+        'file_ext'        => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'txt', 'fbx', 'glb'],
         'mime_sniff'      => true,                 // 在扩展名之上补 finfo 真实类型校验（用户确认开启）
         'version_keep'    => 20,                   // 每篇文章保留的历史版本数，超出由 kb:gc 清理
     ],

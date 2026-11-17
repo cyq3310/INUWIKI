@@ -115,7 +115,7 @@ class UploadService
 
         // MIME 嗅探：仅在首片做（后续片是同一文件的切片）
         if ($index === 0 && (bool) config('myconfig.knowledge.mime_sniff', true)) {
-            $this->assertMime($file->getRealPath(), $type);
+            $this->assertMime($file->getRealPath(), $type, (string) $task['filename']);
         }
 
         $dir = $this->chunkDir($uploadId);
@@ -175,14 +175,17 @@ class UploadService
             'updated_at'    => date('Y-m-d H:i:s'),
         ]);
 
-        // 入队：流式合并 + 转码 + 封面（禁止同步执行）
+        // 入队：流式合并 + 转码 + 封面（生产异步；sync 驱动会立即执行）
+        // 显式指定队列名，避免运行环境改了默认队列后 worker 监听不到。
+        $queueName = (string) config('queue.connections.redis.queue', 'inuwiki');
         \think\facade\Queue::push(\app\job\KbProcessJob::class, [
             'upload_id'     => $uploadId,
             'attachment_id' => $attachmentId,
-        ]);
+        ], $queueName);
 
         return [
             'attachment_id' => $attachmentId,
+            'original_name' => (string) $task['filename'],
             'status'        => 'pending',
             'type'          => $type,
         ];
@@ -235,10 +238,20 @@ class UploadService
     }
 
     /**
-     * finfo MIME 嗅探：真实类型必须与扩展名白名单对应的类型族一致
+     * finfo MIME 嗅探：真实类型必须与扩展名白名单对应的类型族一致。
+     * FBX / GLB 的 libmagic 结果常是 application/octet-stream 或 text/plain，
+     * 因此按文件头签名单独校验，避免误拒 3D 模型文件。
      */
-    private function assertMime(string $realPath, string $type): void
+    private function assertMime(string $realPath, string $type, string $filename = ''): void
     {
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (in_array($ext, ['fbx', 'glb'], true)) {
+            if (!$this->assertModelSignature($realPath, $ext)) {
+                throw new \RuntimeException('文件头不符合 ' . strtoupper($ext) . ' 格式，拒绝上传');
+            }
+            return;
+        }
+
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $mime  = (string) $finfo->file($realPath);
 
@@ -255,5 +268,21 @@ class UploadService
         if ($mime === '' || !in_array($mime, $allow, true)) {
             throw new \RuntimeException('文件真实类型不合法（' . $mime . '），拒绝上传');
         }
+    }
+
+    /** 校验 3D 模型文件头：GLB 的 glTF 魔数，FBX 的二进制/ASCII 头 */
+    private function assertModelSignature(string $realPath, string $ext): bool
+    {
+        $head = file_get_contents($realPath, false, null, 0, 256);
+        if ($head === false || $head === '') {
+            return false;
+        }
+        if ($ext === 'glb') {
+            return substr($head, 0, 4) === 'glTF';
+        }
+
+        return str_starts_with($head, 'Kaydara FBX Binary')
+            || str_contains($head, 'FBXHeaderExtension')
+            || str_contains(substr($head, 0, 64), '; FBX');
     }
 }

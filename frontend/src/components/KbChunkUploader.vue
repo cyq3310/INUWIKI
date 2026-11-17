@@ -12,7 +12,7 @@ import {
   type ResumeRecord,
 } from '../utils/upload-store'
 import { formatBytes, formatDuration } from '../utils/format'
-import type { AttachmentType } from '../types'
+import type { AttachmentStatus, AttachmentType } from '../types'
 
 /**
  * 分片上传组件（5MB / 片 · 并发 3 · 断点续传）
@@ -35,7 +35,7 @@ const POLL_INTERVAL = 3000
 /** 轮询最大次数（3s × 600 ≈ 30 分钟） */
 const POLL_MAX = 600
 
-type TaskState = 'uploading' | 'paused' | 'merging' | 'transcoding' | 'ready' | 'failed' | 'canceled'
+type TaskState = 'uploading' | 'paused' | 'uploaded' | 'merging' | 'transcoding' | 'ready' | 'failed' | 'canceled'
 
 interface UploadTask {
   id: string
@@ -82,11 +82,13 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  /** 转码完成、附件就绪 */
+  /** 分片上传完成，附件记录已创建；处理中附件也需要进编辑页清单 */
+  (e: 'uploaded', payload: { attachmentId: number; name: string; type: AttachmentType; status: AttachmentStatus }): void
+  /** 后端处理完成、附件就绪 */
   (e: 'done', payload: { attachmentId: number; name: string; type: AttachmentType; duration: number }): void
   /** 点击「插入正文」（就绪态任务） */
   (e: 'insert', payload: { attachmentId: number; name: string; type: AttachmentType }): void
-  /** 点击「移除」：仅从本次会话移除，后端无删除附件接口 */
+  /** 点击「移除」：同步清理正文占位与文章附件归属 */
   (e: 'remove', attachmentId: number): void
 }>()
 
@@ -106,7 +108,7 @@ const acceptAttr = computed(() => {
   if (props.accept) return props.accept
   if (props.type === 'video') return '.mp4,.mov,.mkv,.webm,.avi'
   if (props.type === 'image') return '.jpg,.jpeg,.png,.webp,.gif'
-  return '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.png,.jpg,.jpeg,.webp'
+  return '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.fbx,.glb,.png,.jpg,.jpeg,.webp'
 })
 
 const typeLabel = computed(() => (props.type === 'video' ? '视频' : props.type === 'image' ? '图片' : '附件'))
@@ -115,7 +117,7 @@ const defaultTip = computed(() => {
   if (props.tip) return props.tip
   if (props.type === 'video') return '支持 mp4 / mov / mkv / webm，自动分片 5 MB 并异步转码'
   if (props.type === 'image') return '支持 jpg / png / webp / gif'
-  return '支持 pdf / office / zip 等常见文档，自动分片 5 MB'
+  return '支持 pdf / office / zip / txt / fbx / glb 等格式，自动分片 5 MB'
 })
 
 // ---------- 状态展示 ----------
@@ -123,9 +125,10 @@ const defaultTip = computed(() => {
 const STATE_TEXT: Record<TaskState, string> = {
   uploading: '上传中',
   paused: '已暂停',
+  uploaded: '已上传',
   merging: '合并中',
   transcoding: '转码中',
-  ready: '已就绪',
+  ready: '已完成',
   failed: '失败',
   canceled: '已取消',
 }
@@ -133,6 +136,7 @@ const STATE_TEXT: Record<TaskState, string> = {
 const STATE_PILL: Record<TaskState, string> = {
   uploading: 'blue',
   paused: 'gray',
+  uploaded: 'blue',
   merging: 'blue',
   transcoding: 'amber',
   ready: 'green',
@@ -143,6 +147,7 @@ const STATE_PILL: Record<TaskState, string> = {
 const BAR_COLOR: Record<TaskState, string> = {
   uploading: 'linear-gradient(135deg,#4F7DF3,#2B5CE6)',
   paused: '#C9D4F0',
+  uploaded: 'linear-gradient(135deg,#4F7DF3,#2B5CE6)',
   merging: 'linear-gradient(135deg,#4F7DF3,#2B5CE6)',
   transcoding: 'linear-gradient(135deg,#F5A524,#E5761B)',
   ready: 'linear-gradient(135deg,#36C9A6,#159A76)',
@@ -251,9 +256,9 @@ function pump(task: UploadTask): void {
   }
 }
 
-/** 全部片上传完成 → complete（合并入队）→ 轮询状态 */
+/** 全部片上传完成 → complete（附件入库/处理入队）→ 轮询后端处理状态 */
 async function finalize(task: UploadTask): Promise<void> {
-  task.state = 'merging'
+  task.state = 'uploaded'
   try {
     const res = await uploadApi.complete(task.uploadId, props.type)
     task.attachmentId = Number(res.data?.attachment_id || 0)
@@ -264,6 +269,26 @@ async function finalize(task: UploadTask): Promise<void> {
       task.error = '服务端未返回附件 ID'
       return
     }
+
+    const status = res.data?.status || 'pending'
+    task.state = status === 'merging'
+      ? 'merging'
+      : status === 'transcoding'
+        ? 'transcoding'
+        : status === 'failed'
+          ? 'failed'
+          : 'uploaded'
+    if (status === 'failed') {
+      task.error = '服务端处理失败'
+      return
+    }
+
+    emit('uploaded', {
+      attachmentId: task.attachmentId,
+      name: res.data?.original_name || task.name,
+      type: props.type,
+      status,
+    })
     startPolling(task)
   } catch (err) {
     task.state = 'failed'
@@ -304,8 +329,11 @@ function startPolling(task: UploadTask): void {
           task.error = res.data?.fail_reason || '处理失败'
         } else if (status === 'transcoding') {
           task.state = 'transcoding'
-        } else {
+        } else if (status === 'merging') {
           task.state = 'merging'
+        } else {
+          // pending 表示附件记录已创建、后台处理尚未开始；分片上传本身已经完成
+          task.state = 'uploaded'
         }
       })
       .catch((err: Error) => {
@@ -570,7 +598,7 @@ onBeforeUnmount(() => {
         <span class="task-name">{{ task.name }}</span>
         <span class="task-size">{{ formatBytes(task.size) }}</span>
         <span class="pill" :class="statePill(task)">
-          <Loader2 v-if="task.state === 'merging' || task.state === 'transcoding'" :size="11" />
+          <Loader2 v-if="task.state === 'merging' || task.state === 'transcoding'" :size="11" class="kb-spin" />
           <CheckCircle2 v-else-if="task.state === 'ready'" :size="11" />
           <AlertTriangle v-else-if="task.state === 'failed'" :size="11" />
           {{ stateText(task) }}

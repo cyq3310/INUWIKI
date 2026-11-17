@@ -21,7 +21,7 @@ import { normalizeForEditor, parseContent, type TocItem } from '../../utils/cont
 import { CARD_COLORS, isCardColor } from '../../utils/card'
 import { formatBytes, formatDuration } from '../../utils/format'
 import { clearDraft, pruneDrafts, readDraft, writeDraft, type EditDraft, type EditDraftPayload } from '../../utils/edit-draft'
-import type { ArticleStatus, ArticleVersion, AttachmentType, DocType, EditMode, SubjectOption, SubjectType, ViewScope } from '../../types'
+import type { ArticleStatus, ArticleVersion, AttachmentStatus, AttachmentType, DocType, EditMode, SubjectOption, SubjectType, ViewScope } from '../../types'
 
 /**
  * 后台 · 文章编辑（正文为主区域，文章设置以右侧抽屉展开，新建时自动展开）
@@ -31,8 +31,8 @@ import type { ArticleStatus, ArticleVersion, AttachmentType, DocType, EditMode, 
  * 正文：wangEditor 占满整行，工具栏含「插入视频」「插入附件」；
  *      编辑器下方依次为 KbChunkUploader（视频）与附件区域。
  *
- * 已知限制：后端无 GET /kbapi/admin/articles/:id，编辑草稿依赖列表页带来的快照（wiki.editRow）；
- * 后端也无附件删除 / 绑定接口，「移除」只作用于本次会话。
+ * 编辑页保存时会提交当前附件清单；后端按清单与正文占位节点全量绑定 / 解绑视频与文件附件。
+ * 「移除」会同步清理正文占位，保存后阅读页不再返回或渲染该附件。
  */
 
 interface GrantRow {
@@ -47,7 +47,19 @@ interface AttRow {
   type: AttachmentType
   size: number
   duration: number
-  status?: string
+  status?: AttachmentStatus
+}
+
+const ATTACHMENT_STATUS_TEXT: Record<AttachmentStatus, string> = {
+  pending: '待处理',
+  merging: '合并中',
+  transcoding: '转码中',
+  ready: '就绪',
+  failed: '处理失败',
+}
+
+function attachmentStatusText(status?: AttachmentStatus): string {
+  return status ? ATTACHMENT_STATUS_TEXT[status] : '就绪'
 }
 
 const route = useRoute()
@@ -306,13 +318,26 @@ onBeforeUnmount(() => {
 /** 附件清单：已有附件 + 本次会话上传成功的附件（全量，保存时用于后端绑定） */
 const attachments = ref<AttRow[]>([])
 
-/** 附件控件只展示通过「附件」面板上传的文件；正文图片 / 视频由各自面板与占位节点管理 */
+/** 视频与文件附件分开展示；正文图片仍由 bindContentAssets 按 URL 绑定 */
+const videoAttachments = computed(() => attachments.value.filter((row) => row.type === 'video'))
 const fileAttachments = computed(() => attachments.value.filter((row) => row.type === 'file'))
 
 function upsertAttachment(row: AttRow): void {
   const hit = attachments.value.find((item) => item.id === row.id)
   if (hit) Object.assign(hit, row)
   else attachments.value.push(row)
+}
+
+/** 分片上传完成即加入清单；即使后端队列还没处理完，也能在编辑页看到并移除 */
+function onUploadCommitted(payload: { attachmentId: number; name: string; type: AttachmentType; status: AttachmentStatus }): void {
+  upsertAttachment({
+    id: payload.attachmentId,
+    name: payload.name,
+    type: payload.type,
+    size: 0,
+    duration: 0,
+    status: payload.status,
+  })
 }
 
 function onUploaded(payload: { attachmentId: number; name: string; type: AttachmentType; duration: number }): void {
@@ -373,9 +398,18 @@ function onInsertRequest(payload: { attachmentId: number; name: string; type: At
   insertIntoEditor({ id: payload.attachmentId, name: payload.name, type: payload.type })
 }
 
-/** 「移除」仅作用于本次会话：后端暂无删除附件接口 */
+/** 从当前清单与正文占位节点同时移除；保存后服务端会解绑该附件 */
 function dropAttachment(id: number): void {
   attachments.value = attachments.value.filter((row) => row.id !== id)
+
+  const doc = new DOMParser().parseFromString(`<div id="kb-root">${form.content || ''}</div>`, 'text/html')
+  const root = doc.getElementById('kb-root')
+  if (root) {
+    root.querySelectorAll(`[data-kb-video="${id}"], [data-kb-file="${id}"]`).forEach((node) => node.remove())
+    form.content = normalizeForEditor(root.innerHTML)
+  }
+  scheduleDraft()
+  ElMessage.success('已移除附件，保存后不再显示')
 }
 
 /** 上传上限取自与后端 myconfig 同步的 limits 配置，避免界面文案与实际限制脱节 */
@@ -512,6 +546,8 @@ async function saveArticle(status: ArticleStatus): Promise<void> {
       status,
       view_scope: form.view_scope,
       edit_mode: form.edit_mode,
+      // 当前附件清单交给文章保存接口全量同步，避免二次 attach 与页面跳转产生竞态
+      attachment_ids: attachments.value.map((row) => row.id),
     }
 
     let id = routeId.value
@@ -528,10 +564,6 @@ async function saveArticle(status: ArticleStatus): Promise<void> {
 
     // 授权名单（restricted 场景）
     await saveGrants(id).catch(() => undefined)
-
-    // 把已上传附件挂到文章（后端暂未实现时静默降级）
-    const ids = attachments.value.map((row) => row.id)
-    if (ids.length) articleApi.attach(id, ids).catch(() => undefined)
 
     // 保存成功：清掉本地草稿并解除离开拦截，避免下次进编辑页误报「恢复草稿」
     clearDraft(draftUserId.value, draftArticleId.value)
@@ -1150,7 +1182,34 @@ onBeforeUnmount(() => {
 
       <div class="card-solid" style="margin-top: 20px">
         <div class="side-card-title">视频（支持分片 · 断点续传 · 单个最大 {{ videoMaxText }}）</div>
-        <KbChunkUploader type="video" :tip="videoTip" @done="onUploaded" @insert="onInsertRequest" @remove="dropAttachment" />
+        <div v-for="row in videoAttachments" :key="row.id" style="display: flex; align-items: center; gap: 12px; padding: 8px 0">
+          <div class="thumb" style="width: 38px; height: 38px; border-radius: 8px">
+            <div class="ph g2"></div>
+          </div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 13px" class="truncate">{{ row.name }}</div>
+            <div class="cell-sub">
+              视频
+              <template v-if="row.size"> · {{ formatBytes(row.size) }}</template>
+              <template v-if="row.duration"> · {{ formatDuration(row.duration) }}</template>
+              · {{ attachmentStatusText(row.status) }}
+            </div>
+          </div>
+          <button type="button" class="link danger" title="移除视频并清理正文占位" @click="dropAttachment(row.id)">
+            移除
+          </button>
+        </div>
+        <div v-if="!videoAttachments.length" class="cell-sub" style="padding: 4px 0 8px">暂无视频，上传后会自动出现在这里</div>
+        <div style="margin-top: 12px">
+          <KbChunkUploader
+            type="video"
+            :tip="videoTip"
+            @uploaded="onUploadCommitted"
+            @done="onUploaded"
+            @insert="onInsertRequest"
+            @remove="dropAttachment"
+          />
+        </div>
       </div>
 
       <div class="card-solid" style="margin-top: 20px">
@@ -1165,15 +1224,14 @@ onBeforeUnmount(() => {
               {{ row.type === 'video' ? '视频' : '附件' }}
               <template v-if="row.size"> · {{ formatBytes(row.size) }}</template>
               <template v-if="row.duration"> · {{ formatDuration(row.duration) }}</template>
-              <template v-if="row.status && row.status !== 'ready'"> · {{ row.status }}</template>
-              <template v-else> · 就绪</template>
+              · {{ attachmentStatusText(row.status) }}
             </div>
           </div>
           <button
             type="button"
             class="link danger"
-            title="后端暂无删除附件接口，仅从本次会话移除"
-            @click="attachments = attachments.filter((item) => item.id !== row.id)"
+            title="移除附件并清理正文占位"
+            @click="dropAttachment(row.id)"
           >
             移除
           </button>
@@ -1184,6 +1242,7 @@ onBeforeUnmount(() => {
           <KbChunkUploader
             type="file"
             :tip="fileTip"
+            @uploaded="onUploadCommitted"
             @done="onUploaded"
             @insert="onInsertRequest"
             @remove="dropAttachment"
@@ -1209,7 +1268,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div v-else class="kb-empty" style="padding: 28px 12px">
-        暂无可插入的{{ insertKind === 'video' ? '视频' : '附件' }}，请先在下方上传面板完成上传（转码就绪后自动加入列表）。
+        暂无可插入的{{ insertKind === 'video' ? '视频' : '附件' }}，请先在下方上传面板完成上传（附件入库后自动加入列表）。
       </div>
       <template #footer>
         <button type="button" class="btn" @click="insertDialog = false">关闭</button>
