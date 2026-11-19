@@ -146,6 +146,32 @@ const EDITOR_BLOCK_TAGS = new Set([
 ])
 
 /**
+ * wangEditor 用扁平模型表示列表：每个列表项是带 level 的 list-item，
+ * 序列化时嵌套层级写成 <ul>/<ol> 作为父列表的“兄弟节点”，而不是嵌在 <li> 里。
+ * 但 HTMLPurifier 保存时会把兄弟 ul 折叠进前一个 li（标准的 li > ul 结构）。
+ * wangEditor 解析 li 时只保留文本 / inline 子节点，嵌在 li 里的列表项会被丢弃；
+ * 若该 li 没有直接文本，还会退化成用 li.textContent 把子项文字压成一行。
+ *
+ * 因此送入编辑器前，把 li 里的 ul/ol 提升为父列表的兄弟节点，
+ * 还原成 wangEditor 可正确解析的结构。阅读页仍使用服务端的标准结构，
+ * 由浏览器原生渲染列表标记与缩进。
+ */
+function normalizeListsForEditor(root: HTMLElement): void {
+  // HTMLPurifier 可能折叠出多层嵌套，循环提升直到没有 li > ul/ol
+  let guard = 0
+  while (guard++ < 50) {
+    const nested = root.querySelector('li > ul, li > ol')
+    if (!nested) break
+    const host = nested.parentElement
+    const parentList = host?.parentElement
+    if (!host || !parentList) break
+    if (parentList.tagName !== 'UL' && parentList.tagName !== 'OL') break
+    // 提升为宿主 li 的兄弟节点，保持原顺序
+    parentList.insertBefore(nested, host.nextSibling)
+  }
+}
+
+/**
  * 把正文规范化为 wangEditor 可安全挂载的结构。
  *
  * wangEditor 的 slate 模型要求顶层只能是块级节点，遇到游离的 `<a>` 或裸文本会抛
@@ -154,6 +180,7 @@ const EDITOR_BLOCK_TAGS = new Set([
  * 因此历史数据 / 异常数据在进编辑器前统一处理：
  * - 顶层非块级节点（如裸 `<a>`）包进 `<p>`
  * - 顶层裸文本包进 `<p>`，纯空白文本节点丢弃
+ * - 嵌套列表还原为 wangEditor 的兄弟 ul 结构，避免缩进项丢失或被合并成一行
  */
 export function normalizeForEditor(html: string): string {
   const source = normalizeAssetUrls(html || '').trim()
@@ -162,6 +189,8 @@ export function normalizeForEditor(html: string): string {
   const doc = new DOMParser().parseFromString(`<div id="kb-root">${source}</div>`, 'text/html')
   const root = doc.getElementById('kb-root')
   if (!root) return source
+
+  normalizeListsForEditor(root)
 
   for (const node of Array.from(root.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) {

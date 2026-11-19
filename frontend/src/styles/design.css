@@ -1183,12 +1183,39 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Tailwind Preflight 会重置 ul/ol 的 list-style 与 padding，这里显式恢复 */
 .article-body ul,
 .article-body ol {
   margin: 0 0 14px 20px;
+  padding-left: 20px;
+}
+.article-body ul {
+  list-style-type: disc;
+}
+.article-body ol {
+  list-style-type: decimal;
+}
+.article-body ul ul {
+  list-style-type: circle;
+}
+.article-body ol ol,
+.article-body ul ol {
+  list-style-type: lower-alpha;
+}
+.article-body ol ul {
+  list-style-type: circle;
+}
+.article-body ul ul,
+.article-body ol ol,
+.article-body ul ol,
+.article-body ol ul {
+  margin: 4px 0 4px 20px;
 }
 .article-body li {
   margin-bottom: 6px;
+}
+.article-body li::marker {
+  color: var(--primary);
 }
 .article-body img {
   max-width: 100%;
@@ -1198,6 +1225,57 @@
 }
 .article-body a {
   color: var(--primary);
+}
+/* 表格：编辑器可插入表格并合并单元格，阅读页需显式描边与间距 */
+.article-body table {
+  width: 100%;
+  max-width: 100%;
+  margin: 14px 0;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.article-body th,
+.article-body td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.article-body th {
+  background: #f7f9fc;
+  font-weight: 600;
+}
+.article-body tr:nth-child(even) td {
+  background: #fcfdff;
+}
+/* 代码块与行内代码：等宽字体 + 深色代码背景，避免与正文混在一起 */
+.article-body pre {
+  margin: 14px 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  background: #1f2430;
+  color: #e8ecf5;
+  border-radius: var(--r-s);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  tab-size: 2;
+}
+.article-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92em;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #f1f4fa;
+  color: #c7254e;
+}
+.article-body pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
 }
 .toc {
   position: sticky;

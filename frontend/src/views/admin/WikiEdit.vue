@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch 
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
+import { DomEditor } from '@wangeditor/editor'
 import type { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor'
 import '@wangeditor/editor/dist/css/style.css'
 import { Check, Film, FolderPlus, Paperclip, Settings2 } from 'lucide-vue-next'
@@ -308,6 +309,15 @@ function onCustomPaste(editor: IDomEditor, event: ClipboardEvent, done: (res?: b
 
 function onCreated(editor: IDomEditor): void {
   editorRef.value = editor
+
+  // 列表项内禁止 Tab 行缩进：wangEditor 的 list 插件会在光标位于 list-item
+  // 行首时把 level +1 生成多级列表。多级列表在 HTMLPurifier 折叠 / 回显时
+  // 容易丢字或被合并，这里统一禁用，列表始终保持单级。
+  const baseHandleTab = editor.handleTab.bind(editor)
+  editor.handleTab = () => {
+    if (DomEditor.getSelectedNodeByType(editor, 'list-item')) return
+    baseHandleTab()
+  }
 }
 
 onBeforeUnmount(() => {
